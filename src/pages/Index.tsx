@@ -1,13 +1,10 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Bot, Mic, Users, FileText, Shield, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-
 const Index = () => {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-teal-900">
+  return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-teal-900">
       {/* Header */}
       <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -51,7 +48,7 @@ const Index = () => {
                 </Button>
               </Link>
               <Link to="/demo">
-                <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10 px-8 py-4 text-lg">
+                <Button size="lg" variant="outline" className="border-white/30 hover:bg-white/10 px-8 py-4 text-lg text-slate-950">
                   Watch Demo
                 </Button>
               </Link>
@@ -144,8 +141,6 @@ const Index = () => {
           <p>&copy; 2024 TranscribeBot Pro. All rights reserved.</p>
         </div>
       </footer>
-    </div>
-  );
+    </div>;
 };
-
 export default Index;
