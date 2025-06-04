@@ -1,15 +1,23 @@
 
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Bot, Plus, Search, Filter, Play, Square, Users, FileText, Download, Share } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Bot, Plus, Search, Filter, Play, Square, Users, FileText, Download, Share, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/hooks/useAuth';
 
 const Dashboard = () => {
   const [activeBot, setActiveBot] = useState(false);
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+  };
+
   // Mock data for meetings
   const meetings = [
     {
@@ -45,20 +53,23 @@ const Dashboard = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-teal-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       {/* Header */}
       <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Bot className="h-8 w-8 text-teal-400" />
-            <span className="text-2xl font-bold text-white">TranscribeBot Pro</span>
+            <Bot className="h-8 w-8 text-purple-400" />
+            <span className="text-2xl font-bold text-white">NeuroNotes</span>
           </div>
           <div className="flex items-center space-x-4">
-            <Button variant="ghost" className="text-white hover:bg-white/10">
-              Settings
-            </Button>
-            <Button variant="ghost" className="text-white hover:bg-white/10">
-              Profile
+            <span className="text-white">Welcome, {user?.email}</span>
+            <Button
+              onClick={handleSignOut}
+              variant="ghost"
+              className="text-white hover:bg-white/10"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
             </Button>
           </div>
         </div>
@@ -67,7 +78,7 @@ const Dashboard = () => {
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Welcome back, John!</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">Welcome back!</h1>
           <p className="text-slate-300">Manage your meeting transcriptions and collaborate with your team.</p>
         </div>
 
@@ -77,7 +88,7 @@ const Dashboard = () => {
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-white flex items-center gap-2">
-                  <Bot className="h-5 w-5 text-teal-400" />
+                  <Bot className="h-5 w-5 text-purple-400" />
                   Bot Status
                 </CardTitle>
                 <Badge variant={activeBot ? "default" : "secondary"} className={activeBot ? "bg-green-600" : "bg-slate-600"}>
@@ -91,7 +102,7 @@ const Dashboard = () => {
               </p>
               <Button 
                 onClick={() => setActiveBot(!activeBot)}
-                className={`w-full ${activeBot ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} text-white`}
+                className={`w-full ${activeBot ? 'bg-red-600 hover:bg-red-700' : 'bg-purple-600 hover:bg-purple-700'} text-white`}
               >
                 {activeBot ? (
                   <>
@@ -178,10 +189,12 @@ const Dashboard = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       {meeting.transcript && (
-                        <Button size="sm" variant="outline" className="border-white/30 text-white hover:bg-white/10">
-                          <FileText className="h-4 w-4 mr-1" />
-                          Transcript
-                        </Button>
+                        <Link to={`/transcript/${meeting.id}`}>
+                          <Button size="sm" variant="outline" className="border-white/30 text-white hover:bg-white/10">
+                            <FileText className="h-4 w-4 mr-1" />
+                            Transcript
+                          </Button>
+                        </Link>
                       )}
                       {meeting.summary && (
                         <Button size="sm" variant="outline" className="border-white/30 text-white hover:bg-white/10">
@@ -205,7 +218,7 @@ const Dashboard = () => {
         </div>
 
         {/* Quick Start Guide */}
-        <Card className="bg-gradient-to-r from-teal-600/20 to-blue-600/20 backdrop-blur-md border-white/20">
+        <Card className="bg-gradient-to-r from-purple-600/20 to-purple-800/20 backdrop-blur-md border-white/20">
           <CardHeader>
             <CardTitle className="text-white text-xl">Getting Started</CardTitle>
             <CardDescription className="text-slate-300">
@@ -215,21 +228,21 @@ const Dashboard = () => {
           <CardContent>
             <div className="grid md:grid-cols-3 gap-6">
               <div className="text-center">
-                <div className="w-12 h-12 bg-teal-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
                   <span className="text-white font-bold">1</span>
                 </div>
                 <h3 className="text-white font-semibold mb-2">Start Bot</h3>
                 <p className="text-slate-300 text-sm">Click "Start New Bot" and provide the meeting URL</p>
               </div>
               <div className="text-center">
-                <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-12 h-12 bg-purple-700 rounded-full flex items-center justify-center mx-auto mb-4">
                   <span className="text-white font-bold">2</span>
                 </div>
                 <h3 className="text-white font-semibold mb-2">Auto Transcribe</h3>
                 <p className="text-slate-300 text-sm">Watch real-time transcription as the meeting progresses</p>
               </div>
               <div className="text-center">
-                <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-12 h-12 bg-purple-800 rounded-full flex items-center justify-center mx-auto mb-4">
                   <span className="text-white font-bold">3</span>
                 </div>
                 <h3 className="text-white font-semibold mb-2">Share & Collaborate</h3>

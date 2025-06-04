@@ -35,14 +35,14 @@ const TranscriptEditor = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-teal-900">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       {/* Header */}
       <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Link to="/dashboard" className="flex items-center space-x-2">
-              <Bot className="h-8 w-8 text-teal-400" />
-              <span className="text-2xl font-bold text-white">TranscribeBot Pro</span>
+              <Bot className="h-8 w-8 text-purple-400" />
+              <span className="text-2xl font-bold text-white">NeuroNotes</span>
             </Link>
             <span className="text-slate-400">/</span>
             <span className="text-white font-medium">Transcript Editor</span>
