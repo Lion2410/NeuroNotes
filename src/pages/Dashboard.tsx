@@ -6,53 +6,48 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
-
 const Dashboard = () => {
   const [activeSession, setActiveSession] = useState(false);
-  const { user, signOut } = useAuth();
+  const {
+    user,
+    signOut
+  } = useAuth();
   const navigate = useNavigate();
-  
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
   };
 
   // Mock data for meetings
-  const meetings = [
-    {
-      id: 1,
-      title: 'Weekly Team Standup',
-      date: '2024-06-04',
-      duration: '32 min',
-      status: 'completed',
-      transcript: true,
-      summary: true,
-      participants: 5
-    },
-    {
-      id: 2,
-      title: 'Product Strategy Review',
-      date: '2024-06-03',
-      duration: '1h 15min',
-      status: 'completed',
-      transcript: true,
-      summary: true,
-      participants: 8
-    },
-    {
-      id: 3,
-      title: 'Client Call - Project Alpha',
-      date: '2024-06-02',
-      duration: '45 min',
-      status: 'processing',
-      transcript: true,
-      summary: false,
-      participants: 3
-    }
-  ];
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
+  const meetings = [{
+    id: 1,
+    title: 'Weekly Team Standup',
+    date: '2024-06-04',
+    duration: '32 min',
+    status: 'completed',
+    transcript: true,
+    summary: true,
+    participants: 5
+  }, {
+    id: 2,
+    title: 'Product Strategy Review',
+    date: '2024-06-03',
+    duration: '1h 15min',
+    status: 'completed',
+    transcript: true,
+    summary: true,
+    participants: 8
+  }, {
+    id: 3,
+    title: 'Client Call - Project Alpha',
+    date: '2024-06-02',
+    duration: '45 min',
+    status: 'processing',
+    transcript: true,
+    summary: false,
+    participants: 3
+  }];
+  return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       {/* Header */}
       <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -62,11 +57,7 @@ const Dashboard = () => {
           </div>
           <div className="flex items-center space-x-4">
             <span className="text-white">Welcome, {user?.email}</span>
-            <Button
-              onClick={handleSignOut}
-              variant="ghost"
-              className="text-white hover:bg-white/10"
-            >
+            <Button onClick={handleSignOut} variant="ghost" className="text-white hover:bg-white/10">
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out
             </Button>
@@ -142,12 +133,9 @@ const Dashboard = () => {
             <div className="flex items-center space-x-4">
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder="Search meetings..."
-                  className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-slate-400 w-64"
-                />
+                <Input placeholder="Search meetings..." className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-slate-400 w-64" />
               </div>
-              <Button variant="outline" className="border-white/30 text-white hover:bg-white/10">
+              <Button variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
                 <Filter className="h-4 w-4 mr-2" />
                 Filter
               </Button>
@@ -155,15 +143,13 @@ const Dashboard = () => {
           </div>
 
           <div className="space-y-4">
-            {meetings.map((meeting) => (
-              <Card key={meeting.id} className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-300">
+            {meetings.map(meeting => <Card key={meeting.id} className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-300">
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-4 mb-2">
                         <h3 className="text-lg font-semibold text-white">{meeting.title}</h3>
-                        <Badge variant={meeting.status === 'completed' ? 'default' : 'secondary'} 
-                               className={meeting.status === 'completed' ? 'bg-green-600' : 'bg-yellow-600'}>
+                        <Badge variant={meeting.status === 'completed' ? 'default' : 'secondary'} className={meeting.status === 'completed' ? 'bg-green-600' : 'bg-yellow-600'}>
                           {meeting.status}
                         </Badge>
                       </div>
@@ -177,38 +163,33 @@ const Dashboard = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {meeting.transcript && (
-                        <Link to={`/transcript/${meeting.id}`}>
-                          <Button size="sm" variant="outline" className="border-white/30 text-white hover:bg-white/10">
+                      {meeting.transcript && <Link to={`/transcript/${meeting.id}`}>
+                          <Button size="sm" variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
                             <FileText className="h-4 w-4 mr-1" />
                             Transcript
                           </Button>
-                        </Link>
-                      )}
-                      {meeting.summary && (
-                        <Button size="sm" variant="outline" className="border-white/30 text-white hover:bg-white/10">
+                        </Link>}
+                      {meeting.summary && <Button size="sm" variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
                           Summary
-                        </Button>
-                      )}
-                      <Button size="sm" variant="outline" className="border-white/30 text-white hover:bg-white/10">
+                        </Button>}
+                      <Button size="sm" variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
                         <Download className="h-4 w-4 mr-1" />
                         Export
                       </Button>
-                      <Button size="sm" variant="outline" className="border-white/30 text-white hover:bg-white/10">
+                      <Button size="sm" variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
                         <Share className="h-4 w-4 mr-1" />
                         Share
                       </Button>
                     </div>
                   </div>
                 </CardContent>
-              </Card>
-            ))}
+              </Card>)}
           </div>
         </div>
 
         {/* Quick Start Guide */}
-        <Card className="bg-gradient-to-r from-purple-600/20 to-purple-800/20 backdrop-blur-md border-white/20">
-          <CardHeader>
+        <Card className="bg-gradient-to-r from-purple-600/20 to-purple-800/20 backdrop-blur-md border-white/20 bg-stone-800">
+          <CardHeader className="bg-transparent">
             <CardTitle className="text-white text-xl">Getting Started</CardTitle>
             <CardDescription className="text-slate-300">
               Follow these steps to start transcribing your first meeting
@@ -241,8 +222,6 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default Dashboard;
