@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Brain, ExternalLink, Upload, Play, ArrowLeft } from 'lucide-react';
@@ -9,11 +8,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import AudioRecorder from '@/components/AudioRecorder';
 
 const JoinMeeting = () => {
   const [meetingUrl, setMeetingUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [transcriptionResults, setTranscriptionResults] = useState<string[]>([]);
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -31,14 +33,12 @@ const JoinMeeting = () => {
 
     setLoading(true);
     try {
-      // TODO: Implement meeting joining logic with Playwright
       toast({
         title: "Meeting Assistant Starting",
-        description: "Your AI assistant will join the meeting shortly.",
+        description: "Use the live recording feature below to transcribe the meeting.",
       });
       
-      // Navigate to dashboard or a monitoring page
-      navigate('/dashboard');
+      // Don't navigate away - keep user on this page to use recording
     } catch (error) {
       toast({
         title: "Error",
@@ -63,18 +63,31 @@ const JoinMeeting = () => {
 
     setLoading(true);
     try {
-      // TODO: Implement audio file upload and transcription with Deepgram
-      toast({
-        title: "Upload Started",
-        description: "Your audio file is being processed for transcription.",
+      const formData = new FormData();
+      formData.append('audio', selectedFile);
+
+      const response = await fetch('/functions/v1/transcribe-audio', {
+        method: 'POST',
+        body: formData,
       });
+
+      if (!response.ok) {
+        throw new Error('Transcription failed');
+      }
+
+      const result = await response.json();
       
-      // Navigate to dashboard or transcript editor
-      navigate('/dashboard');
+      if (result.transcript) {
+        setTranscriptionResults([result.transcript]);
+        toast({
+          title: "Transcription Complete",
+          description: "Your audio file has been successfully transcribed.",
+        });
+      }
     } catch (error) {
       toast({
         title: "Upload Failed",
-        description: "Failed to upload audio file. Please try again.",
+        description: "Failed to transcribe audio file. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -85,7 +98,6 @@ const JoinMeeting = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Check if it's an audio file
       if (file.type.startsWith('audio/')) {
         setSelectedFile(file);
       } else {
@@ -96,6 +108,10 @@ const JoinMeeting = () => {
         });
       }
     }
+  };
+
+  const handleTranscription = (text: string) => {
+    setTranscriptionResults(prev => [...prev, text]);
   };
 
   return (
@@ -125,9 +141,12 @@ const JoinMeeting = () => {
         </div>
 
         <Tabs defaultValue="meeting" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-white/10 border-white/20">
+          <TabsList className="grid w-full grid-cols-3 bg-white/10 border-white/20">
             <TabsTrigger value="meeting" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
               Live Meeting
+            </TabsTrigger>
+            <TabsTrigger value="record" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
+              Live Recording
             </TabsTrigger>
             <TabsTrigger value="upload" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
               Upload Audio
@@ -142,7 +161,7 @@ const JoinMeeting = () => {
                   Join Live Meeting
                 </CardTitle>
                 <CardDescription className="text-slate-300">
-                  Enter the meeting URL and our AI assistant will join to provide real-time transcription
+                  Enter the meeting URL and use the live recording feature to transcribe the meeting
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -169,17 +188,25 @@ const JoinMeeting = () => {
                     className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
                   >
                     {loading ? (
-                      'Starting Assistant...'
+                      'Preparing...'
                     ) : (
                       <>
                         <Play className="h-4 w-4 mr-2" />
-                        Start Meeting Assistant
+                        Prepare for Recording
                       </>
                     )}
                   </Button>
                 </form>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="record" className="mt-8">
+            <AudioRecorder
+              onTranscription={handleTranscription}
+              isRecording={isRecording}
+              setIsRecording={setIsRecording}
+            />
           </TabsContent>
 
           <TabsContent value="upload" className="mt-8">
@@ -241,6 +268,40 @@ const JoinMeeting = () => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Transcription Results */}
+        {transcriptionResults.length > 0 && (
+          <Card className="mt-8 bg-white/10 backdrop-blur-md border-white/20">
+            <CardHeader>
+              <CardTitle className="text-white">Transcription Results</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {transcriptionResults.map((text, index) => (
+                  <div key={index} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                    <p className="text-slate-300 leading-relaxed">{text}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 flex gap-2">
+                <Button 
+                  onClick={() => navigator.clipboard.writeText(transcriptionResults.join(' '))}
+                  variant="outline" 
+                  className="border-white/30 text-white hover:bg-white/10"
+                >
+                  Copy All
+                </Button>
+                <Button 
+                  onClick={() => setTranscriptionResults([])}
+                  variant="outline" 
+                  className="border-white/30 text-white hover:bg-white/10"
+                >
+                  Clear
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
