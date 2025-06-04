@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Bot, Plus, Search, Filter, Play, Square, Users, FileText, Download, Share, LogOut } from 'lucide-react';
+import { Brain, Plus, Search, Filter, Play, Square, Users, FileText, Download, Share, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 
 const Dashboard = () => {
-  const [activeBot, setActiveBot] = useState(false);
+  const [activeSession, setActiveSession] = useState(false);
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   
@@ -58,7 +57,7 @@ const Dashboard = () => {
       <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Bot className="h-8 w-8 text-purple-400" />
+            <Brain className="h-8 w-8 text-purple-400" />
             <span className="text-2xl font-bold text-white">NeuroNotes</span>
           </div>
           <div className="flex items-center space-x-4">
@@ -88,34 +87,24 @@ const Dashboard = () => {
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-white flex items-center gap-2">
-                  <Bot className="h-5 w-5 text-purple-400" />
-                  Bot Status
+                  <Brain className="h-5 w-5 text-purple-400" />
+                  Session Status
                 </CardTitle>
-                <Badge variant={activeBot ? "default" : "secondary"} className={activeBot ? "bg-green-600" : "bg-slate-600"}>
-                  {activeBot ? "Active" : "Inactive"}
+                <Badge variant={activeSession ? "default" : "secondary"} className={activeSession ? "bg-green-600" : "bg-slate-600"}>
+                  {activeSession ? "Active" : "Inactive"}
                 </Badge>
               </div>
             </CardHeader>
             <CardContent>
               <p className="text-slate-300 mb-4">
-                {activeBot ? "Bot is currently recording a meeting" : "Start a new meeting bot"}
+                {activeSession ? "AI assistant is currently in a meeting" : "Start a new transcription session"}
               </p>
-              <Button 
-                onClick={() => setActiveBot(!activeBot)}
-                className={`w-full ${activeBot ? 'bg-red-600 hover:bg-red-700' : 'bg-purple-600 hover:bg-purple-700'} text-white`}
-              >
-                {activeBot ? (
-                  <>
-                    <Square className="h-4 w-4 mr-2" />
-                    Stop Bot
-                  </>
-                ) : (
-                  <>
-                    <Play className="h-4 w-4 mr-2" />
-                    Start New Bot
-                  </>
-                )}
-              </Button>
+              <Link to="/join-meeting">
+                <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+                  <Play className="h-4 w-4 mr-2" />
+                  Start New Session
+                </Button>
+              </Link>
             </CardContent>
           </Card>
 
@@ -231,15 +220,15 @@ const Dashboard = () => {
                 <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
                   <span className="text-white font-bold">1</span>
                 </div>
-                <h3 className="text-white font-semibold mb-2">Start Bot</h3>
-                <p className="text-slate-300 text-sm">Click "Start New Bot" and provide the meeting URL</p>
+                <h3 className="text-white font-semibold mb-2">Start Session</h3>
+                <p className="text-slate-300 text-sm">Click "Start New Session" and choose to join a meeting or upload audio</p>
               </div>
               <div className="text-center">
                 <div className="w-12 h-12 bg-purple-700 rounded-full flex items-center justify-center mx-auto mb-4">
                   <span className="text-white font-bold">2</span>
                 </div>
-                <h3 className="text-white font-semibold mb-2">Auto Transcribe</h3>
-                <p className="text-slate-300 text-sm">Watch real-time transcription as the meeting progresses</p>
+                <h3 className="text-white font-semibold mb-2">AI Transcription</h3>
+                <p className="text-slate-300 text-sm">Watch real-time transcription as the meeting progresses or audio processes</p>
               </div>
               <div className="text-center">
                 <div className="w-12 h-12 bg-purple-800 rounded-full flex items-center justify-center mx-auto mb-4">

@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+import JoinMeeting from "./pages/JoinMeeting";
 import TranscriptEditor from "./pages/TranscriptEditor";
 import NotFound from "./pages/NotFound";
 
@@ -31,6 +32,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/join-meeting" 
+              element={
+                <ProtectedRoute>
+                  <JoinMeeting />
                 </ProtectedRoute>
               } 
             />
