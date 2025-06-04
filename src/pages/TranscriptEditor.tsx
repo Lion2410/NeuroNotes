@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bot, Save, Download, Share, Users, Edit3, FileText, Clock } from 'lucide-react';
@@ -6,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-
 const TranscriptEditor = () => {
   const [transcript, setTranscript] = useState(`[00:00:15] John Smith: Good morning everyone, thanks for joining today's weekly standup. Let's start with our progress updates.
 
@@ -23,9 +21,7 @@ const TranscriptEditor = () => {
 [00:01:35] Mike Chen: No blockers here. The API documentation is well-structured so integration has been smooth.
 
 [00:01:45] John Smith: Perfect. Let's wrap up with action items for next week...`);
-
   const [isEditing, setIsEditing] = useState(false);
-
   const meetingInfo = {
     title: 'Weekly Team Standup',
     date: '2024-06-04',
@@ -33,9 +29,7 @@ const TranscriptEditor = () => {
     participants: ['John Smith', 'Sarah Johnson', 'Mike Chen'],
     status: 'completed'
   };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
+  return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       {/* Header */}
       <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -52,7 +46,7 @@ const TranscriptEditor = () => {
               <Users className="h-4 w-4 mr-2" />
               Collaborators
             </Button>
-            <Button variant="outline" className="border-white/30 text-white hover:bg-white/10">
+            <Button variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
               <Save className="h-4 w-4 mr-2" />
               Save
             </Button>
@@ -82,11 +76,7 @@ const TranscriptEditor = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button 
-                      onClick={() => setIsEditing(!isEditing)}
-                      variant="outline" 
-                      className="border-white/30 text-white hover:bg-white/10"
-                    >
+                    <Button onClick={() => setIsEditing(!isEditing)} variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
                       <Edit3 className="h-4 w-4 mr-2" />
                       {isEditing ? 'View Mode' : 'Edit Mode'}
                     </Button>
@@ -104,20 +94,11 @@ const TranscriptEditor = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {isEditing ? (
-                  <Textarea
-                    value={transcript}
-                    onChange={(e) => setTranscript(e.target.value)}
-                    className="min-h-[500px] bg-white/5 border-white/20 text-white placeholder:text-slate-400 resize-none"
-                    placeholder="Transcript content..."
-                  />
-                ) : (
-                  <div className="bg-white/5 border border-white/20 rounded-md p-4 min-h-[500px]">
+                {isEditing ? <Textarea value={transcript} onChange={e => setTranscript(e.target.value)} className="min-h-[500px] bg-white/5 border-white/20 text-white placeholder:text-slate-400 resize-none" placeholder="Transcript content..." /> : <div className="bg-white/5 border border-white/20 rounded-md p-4 min-h-[500px]">
                     <pre className="text-white whitespace-pre-wrap font-mono text-sm leading-relaxed">
                       {transcript}
                     </pre>
-                  </div>
-                )}
+                  </div>}
               </CardContent>
             </Card>
 
@@ -126,11 +107,11 @@ const TranscriptEditor = () => {
               <Button className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white">
                 Generate Summary
               </Button>
-              <Button variant="outline" className="border-white/30 text-white hover:bg-white/10">
+              <Button variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
                 <Download className="h-4 w-4 mr-2" />
                 Export Transcript
               </Button>
-              <Button variant="outline" className="border-white/30 text-white hover:bg-white/10">
+              <Button variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
                 <Share className="h-4 w-4 mr-2" />
                 Share Link
               </Button>
@@ -149,16 +130,14 @@ const TranscriptEditor = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {meetingInfo.participants.map((participant, index) => (
-                    <div key={index} className="flex items-center gap-3">
+                  {meetingInfo.participants.map((participant, index) => <div key={index} className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-gradient-to-r from-teal-500 to-blue-500 rounded-full flex items-center justify-center">
                         <span className="text-white text-sm font-medium">
                           {participant.split(' ').map(n => n[0]).join('')}
                         </span>
                       </div>
                       <span className="text-white text-sm">{participant}</span>
-                    </div>
-                  ))}
+                    </div>)}
                 </div>
               </CardContent>
             </Card>
@@ -209,8 +188,6 @@ const TranscriptEditor = () => {
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default TranscriptEditor;
