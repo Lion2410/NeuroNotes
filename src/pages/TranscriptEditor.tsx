@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, Download, Share, Users, Edit3, FileText, Clock, Sparkles } from 'lucide-react';
@@ -226,6 +227,38 @@ Status: Meeting completed successfully`;
     setActiveTab('summary');
     if (!summary && transcript) {
       generateSummary();
+    }
+  };
+
+  const handleExport = () => {
+    const element = document.createElement('a');
+    const file = new Blob([transcript], { type: 'text/plain' });
+    element.href = URL.createObjectURL(file);
+    element.download = `${transcriptionData?.title?.replace(/\s+/g, '_') || 'transcript'}.txt`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+    
+    toast({
+      title: "Export Complete",
+      description: "Transcript has been downloaded successfully."
+    });
+  };
+
+  const handleShare = async () => {
+    const shareUrl = `${window.location.origin}/transcript/${id}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast({
+        title: "Link Copied",
+        description: "Shareable link has been copied to your clipboard."
+      });
+    } catch (error) {
+      toast({
+        title: "Share Failed",
+        description: "Failed to copy share link. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
