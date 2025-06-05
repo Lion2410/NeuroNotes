@@ -1,62 +1,91 @@
+
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Brain, Plus, Search, Filter, Play, Square, Users, FileText, Download, Share, LogOut } from 'lucide-react';
+import { LogOut, Plus, Search, Filter, Play, Users, FileText, Download, Share, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
+
 const Dashboard = () => {
   const [activeSession, setActiveSession] = useState(false);
-  const {
-    user,
-    signOut
-  } = useAuth();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
   };
 
   // Mock data for meetings
-  const meetings = [{
-    id: 1,
-    title: 'Weekly Team Standup',
-    date: '2024-06-04',
-    duration: '32 min',
-    status: 'completed',
-    transcript: true,
-    summary: true,
-    participants: 5
-  }, {
-    id: 2,
-    title: 'Product Strategy Review',
-    date: '2024-06-03',
-    duration: '1h 15min',
-    status: 'completed',
-    transcript: true,
-    summary: true,
-    participants: 8
-  }, {
-    id: 3,
-    title: 'Client Call - Project Alpha',
-    date: '2024-06-02',
-    duration: '45 min',
-    status: 'processing',
-    transcript: true,
-    summary: false,
-    participants: 3
-  }];
-  return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
+  const meetings = [
+    {
+      id: 1,
+      title: 'Weekly Team Standup',
+      date: '2024-06-04',
+      duration: '32 min',
+      status: 'completed',
+      transcript: true,
+      summary: true,
+      participants: 5
+    },
+    {
+      id: 2,
+      title: 'Product Strategy Review',
+      date: '2024-06-03',
+      duration: '1h 15min',
+      status: 'completed',
+      transcript: true,
+      summary: true,
+      participants: 8
+    },
+    {
+      id: 3,
+      title: 'Client Call - Project Alpha',
+      date: '2024-06-02',
+      duration: '45 min',
+      status: 'processing',
+      transcript: true,
+      summary: false,
+      participants: 3
+    }
+  ];
+
+  // Mock data for team members
+  const teamMembers = [
+    { id: 1, name: 'John Smith', email: 'john@company.com', role: 'Project Manager' },
+    { id: 2, name: 'Sarah Johnson', email: 'sarah@company.com', role: 'Developer' },
+    { id: 3, name: 'Mike Chen', email: 'mike@company.com', role: 'Designer' },
+    { id: 4, name: 'Lisa Wong', email: 'lisa@company.com', role: 'QA Engineer' },
+  ];
+
+  // Filter meetings based on search and status
+  const filteredMeetings = meetings.filter(meeting => {
+    const matchesSearch = meeting.title.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || meeting.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       {/* Header */}
       <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Brain className="h-8 w-8 text-purple-400" />
+            <img src="/lovable-uploads/e8e442bd-846b-4e60-b16a-3043d419243f.png" alt="NeuroNotes" className="h-8 w-auto" />
             <span className="text-2xl font-bold text-white">NeuroNotes</span>
           </div>
           <div className="flex items-center space-x-4">
             <span className="text-white">Welcome, {user?.email}</span>
+            <Link to="/profile">
+              <Button variant="ghost" className="text-white hover:bg-white/10">
+                <User className="h-4 w-4 mr-2" />
+                Profile
+              </Button>
+            </Link>
             <Button onClick={handleSignOut} variant="ghost" className="text-white hover:bg-white/10">
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out
@@ -78,7 +107,7 @@ const Dashboard = () => {
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-white flex items-center gap-2">
-                  <Brain className="h-5 w-5 text-purple-400" />
+                  <img src="/lovable-uploads/e8e442bd-846b-4e60-b16a-3043d419243f.png" alt="NeuroNotes" className="h-5 w-5" />
                   Session Status
                 </CardTitle>
                 <Badge variant={activeSession ? "default" : "secondary"} className={activeSession ? "bg-green-600" : "bg-slate-600"}>
@@ -99,7 +128,7 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-300">
+          <Card className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-300 cursor-pointer" onClick={() => navigate('/meetings')}>
             <CardHeader className="pb-4">
               <CardTitle className="text-white flex items-center gap-2">
                 <FileText className="h-5 w-5 text-blue-400" />
@@ -107,12 +136,12 @@ const Dashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-white mb-2">24</div>
-              <p className="text-slate-300">3 this week</p>
+              <div className="text-3xl font-bold text-white mb-2">{meetings.length}</div>
+              <p className="text-slate-300">{meetings.filter(m => m.status === 'completed').length} completed</p>
             </CardContent>
           </Card>
 
-          <Card className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-300">
+          <Card className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-300 cursor-pointer" onClick={() => navigate('/team')}>
             <CardHeader className="pb-4">
               <CardTitle className="text-white flex items-center gap-2">
                 <Users className="h-5 w-5 text-purple-400" />
@@ -120,7 +149,7 @@ const Dashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-white mb-2">8</div>
+              <div className="text-3xl font-bold text-white mb-2">{teamMembers.length}</div>
               <p className="text-slate-300">Active collaborators</p>
             </CardContent>
           </Card>
@@ -133,17 +162,28 @@ const Dashboard = () => {
             <div className="flex items-center space-x-4">
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                <Input placeholder="Search meetings..." className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-slate-400 w-64" />
+                <Input 
+                  placeholder="Search meetings..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-slate-400 w-64" 
+                />
               </div>
-              <Button variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
-                <Filter className="h-4 w-4 mr-2" />
-                Filter
-              </Button>
+              <select 
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-white/10 border border-white/20 text-white rounded-md px-3 py-2"
+              >
+                <option value="all" className="bg-slate-800">All Status</option>
+                <option value="completed" className="bg-slate-800">Completed</option>
+                <option value="processing" className="bg-slate-800">Processing</option>
+              </select>
             </div>
           </div>
 
           <div className="space-y-4">
-            {meetings.map(meeting => <Card key={meeting.id} className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-300">
+            {filteredMeetings.map(meeting => (
+              <Card key={meeting.id} className="bg-[#5A2E8E]/20 backdrop-blur-md border-white/20 hover:bg-[#5A2E8E]/30 transition-all duration-300 cursor-pointer" onClick={() => navigate(`/transcript/${meeting.id}`)}>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
@@ -163,33 +203,36 @@ const Dashboard = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {meeting.transcript && <Link to={`/transcript/${meeting.id}`}>
-                          <Button size="sm" variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
-                            <FileText className="h-4 w-4 mr-1" />
-                            Transcript
-                          </Button>
-                        </Link>}
-                      {meeting.summary && <Button size="sm" variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
+                      {meeting.transcript && (
+                        <Button size="sm" variant="outline" className="border-white/30 hover:bg-white/10 text-white">
+                          <FileText className="h-4 w-4 mr-1" />
+                          Transcript
+                        </Button>
+                      )}
+                      {meeting.summary && (
+                        <Button size="sm" variant="outline" className="border-white/30 hover:bg-white/10 text-white">
                           Summary
-                        </Button>}
-                      <Button size="sm" variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
+                        </Button>
+                      )}
+                      <Button size="sm" variant="outline" className="border-white/30 hover:bg-white/10 text-white">
                         <Download className="h-4 w-4 mr-1" />
                         Export
                       </Button>
-                      <Button size="sm" variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
+                      <Button size="sm" variant="outline" className="border-white/30 hover:bg-white/10 text-white">
                         <Share className="h-4 w-4 mr-1" />
                         Share
                       </Button>
                     </div>
                   </div>
                 </CardContent>
-              </Card>)}
+              </Card>
+            ))}
           </div>
         </div>
 
         {/* Quick Start Guide */}
-        <Card className="bg-gradient-to-r from-purple-600/20 to-purple-800/20 backdrop-blur-md border-white/20 bg-stone-800">
-          <CardHeader className="bg-transparent">
+        <Card className="bg-gradient-to-r from-purple-600/20 to-purple-800/20 backdrop-blur-md border-white/20">
+          <CardHeader>
             <CardTitle className="text-white text-xl">Getting Started</CardTitle>
             <CardDescription className="text-slate-300">
               Follow these steps to start transcribing your first meeting
@@ -222,6 +265,8 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default Dashboard;

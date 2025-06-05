@@ -1,15 +1,17 @@
+
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Brain, Mic, Users, FileText, Shield, Zap } from 'lucide-react';
+import { Mic, Users, FileText, Shield, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+
 const Index = () => {
   return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       {/* Header */}
       <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Brain className="h-8 w-8 text-purple-400" />
+            <img src="/lovable-uploads/e8e442bd-846b-4e60-b16a-3043d419243f.png" alt="NeuroNotes" className="h-8 w-auto" />
             <span className="text-2xl font-bold text-white">NeuroNotes</span>
           </div>
           <div className="flex items-center space-x-4">
@@ -52,7 +54,7 @@ const Index = () => {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
             <Card className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-300 hover:scale-105">
               <CardHeader>
-                <Brain className="h-12 w-12 text-purple-400 mb-4" />
+                <img src="/lovable-uploads/e8e442bd-846b-4e60-b16a-3043d419243f.png" alt="NeuroNotes" className="h-12 w-12 mb-4" />
                 <CardTitle className="text-white">Smart Meeting Assistant</CardTitle>
                 <CardDescription className="text-slate-300">
                   Automatically join Google Meet, Zoom, and other online meetings for seamless transcription
@@ -134,4 +136,5 @@ const Index = () => {
       </footer>
     </div>;
 };
+
 export default Index;

@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Brain, ExternalLink, Upload, Play, ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Upload, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,13 +9,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import AudioRecorder from '@/components/AudioRecorder';
+import RoundRecordingButton from '@/components/RoundRecordingButton';
 
 const JoinMeeting = () => {
   const [meetingUrl, setMeetingUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
   const [transcriptionResults, setTranscriptionResults] = useState<string[]>([]);
   const { user } = useAuth();
   const { toast } = useToast();
@@ -66,8 +66,11 @@ const JoinMeeting = () => {
       const formData = new FormData();
       formData.append('audio', selectedFile);
 
-      const response = await fetch('/functions/v1/transcribe-audio', {
+      const response = await fetch('https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsZnFuY2xxb3dsbGpqY2JldW56Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkwNTMwNzMsImV4cCI6MjA2NDYyOTA3M30.tt4NjuhDuBuuKOBvuoaAJIqxt_wmBRlm2KlN_-l-_UU`,
+        },
         body: formData,
       });
 
@@ -124,7 +127,7 @@ const JoinMeeting = () => {
               <ArrowLeft className="h-6 w-6" />
             </Link>
             <div className="flex items-center space-x-2">
-              <Brain className="h-8 w-8 text-purple-400" />
+              <img src="/lovable-uploads/e8e442bd-846b-4e60-b16a-3043d419243f.png" alt="NeuroNotes" className="h-8 w-auto" />
               <span className="text-2xl font-bold text-white">NeuroNotes</span>
             </div>
           </div>
@@ -140,7 +143,7 @@ const JoinMeeting = () => {
           <p className="text-xl text-slate-300">Join a live meeting or upload recorded audio</p>
         </div>
 
-        <Tabs defaultValue="meeting" className="w-full">
+        <Tabs defaultValue="record" className="w-full">
           <TabsList className="grid w-full grid-cols-3 bg-white/10 border-white/20">
             <TabsTrigger value="meeting" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
               Live Meeting
@@ -202,11 +205,11 @@ const JoinMeeting = () => {
           </TabsContent>
 
           <TabsContent value="record" className="mt-8">
-            <AudioRecorder
-              onTranscription={handleTranscription}
-              isRecording={isRecording}
-              setIsRecording={setIsRecording}
-            />
+            <Card className="bg-white/10 backdrop-blur-md border-white/20">
+              <CardContent className="p-12">
+                <RoundRecordingButton onTranscription={handleTranscription} />
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="upload" className="mt-8">
