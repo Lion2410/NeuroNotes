@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Upload, Play } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Upload, Play, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,19 +9,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import RoundRecordingButton from '@/components/RoundRecordingButton';
+import { supabase } from '@/integrations/supabase/client';
+
 const JoinMeeting = () => {
   const [meetingUrl, setMeetingUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [transcriptionResults, setTranscriptionResults] = useState<string[]>([]);
-  const {
-    user
-  } = useAuth();
-  const {
-    toast
-  } = useToast();
+  const [saving, setSaving] = useState(false);
+  const { user } = useAuth();
+  const { toast } = useToast();
   const navigate = useNavigate();
+
   const handleJoinMeeting = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!meetingUrl.trim()) {
@@ -31,24 +31,36 @@ const JoinMeeting = () => {
       });
       return;
     }
+    
     setLoading(true);
     try {
-      toast({
-        title: "Meeting Assistant Starting",
-        description: "Use the live recording feature below to transcribe the meeting."
+      // Call the meeting bot function
+      const { data, error } = await supabase.functions.invoke('meeting-bot', {
+        body: { meetingUrl }
       });
 
-      // Don't navigate away - keep user on this page to use recording
-    } catch (error) {
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Meeting Bot Started",
+        description: "The bot is joining the meeting and will start transcribing."
+      });
+
+      // The bot will handle joining and transcribing
+      // Results will be saved automatically to the database
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to start meeting assistant. Please try again.",
+        description: error.message || "Failed to start meeting bot. Please try again.",
         variant: "destructive"
       });
     } finally {
       setLoading(false);
     }
   };
+
   const handleFileUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFile) {
@@ -59,10 +71,12 @@ const JoinMeeting = () => {
       });
       return;
     }
+    
     setLoading(true);
     try {
       const formData = new FormData();
       formData.append('audio', selectedFile);
+      
       const response = await fetch('https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio', {
         method: 'POST',
         headers: {
@@ -70,9 +84,11 @@ const JoinMeeting = () => {
         },
         body: formData
       });
+
       if (!response.ok) {
         throw new Error('Transcription failed');
       }
+
       const result = await response.json();
       if (result.transcript) {
         setTranscriptionResults([result.transcript]);
@@ -91,6 +107,7 @@ const JoinMeeting = () => {
       setLoading(false);
     }
   };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -105,10 +122,56 @@ const JoinMeeting = () => {
       }
     }
   };
-  const handleTranscription = (text: string) => {
-    setTranscriptionResults(prev => [...prev, text]);
+
+  const handleSaveTranscription = async () => {
+    if (!transcriptionResults.length || !user) {
+      toast({
+        title: "Nothing to Save",
+        description: "No transcription results to save.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('transcriptions')
+        .insert({
+          user_id: user.id,
+          title: selectedFile?.name || 'Audio Transcription',
+          content: transcriptionResults.join(' '),
+          source_type: 'upload',
+          audio_url: null,
+          meeting_url: null,
+          duration: null
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Transcription Saved",
+        description: "Your transcription has been saved to your notes."
+      });
+      
+      // Clear the results after saving
+      setTranscriptionResults([]);
+      setSelectedFile(null);
+    } catch (error: any) {
+      toast({
+        title: "Save Failed",
+        description: error.message || "Failed to save transcription. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setSaving(false);
+    }
   };
-  return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       {/* Header */}
       <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -117,7 +180,7 @@ const JoinMeeting = () => {
               <ArrowLeft className="h-6 w-6" />
             </Link>
             <div className="flex items-center space-x-2">
-              <img src="/lovable-uploads/e8e442bd-846b-4e60-b16a-3043d419243f.png" alt="NeuroNotes" className="h-8 w-auto" />
+              <img src="/lovable-uploads/451cbc9a-f382-4835-afd3-01127abc2f41.png" alt="NeuroNotes" className="h-8 w-auto" />
               <span className="text-2xl font-bold text-white">NeuroNotes</span>
             </div>
           </div>
@@ -133,13 +196,10 @@ const JoinMeeting = () => {
           <p className="text-xl text-slate-300">Join a live meeting or upload recorded audio</p>
         </div>
 
-        <Tabs defaultValue="record" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 bg-white/10 border-white/20">
+        <Tabs defaultValue="meeting" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 bg-white/10 border-white/20">
             <TabsTrigger value="meeting" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
               Live Meeting
-            </TabsTrigger>
-            <TabsTrigger value="record" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
-              Live Recording
             </TabsTrigger>
             <TabsTrigger value="upload" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
               Upload Audio
@@ -154,34 +214,40 @@ const JoinMeeting = () => {
                   Join Live Meeting
                 </CardTitle>
                 <CardDescription className="text-slate-300">
-                  Enter the meeting URL and use the live recording feature to transcribe the meeting
+                  Enter the meeting URL and our bot will automatically join and transcribe the meeting
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleJoinMeeting} className="space-y-6">
                   <div className="space-y-2">
                     <Label htmlFor="meeting-url" className="text-white">Meeting URL</Label>
-                    <Input id="meeting-url" type="url" placeholder="https://meet.google.com/abc-defg-hij or https://zoom.us/j/..." value={meetingUrl} onChange={e => setMeetingUrl(e.target.value)} className="bg-white/10 border-white/20 text-white placeholder:text-slate-400" required />
+                    <Input
+                      id="meeting-url"
+                      type="url"
+                      placeholder="https://meet.google.com/abc-defg-hij or https://zoom.us/j/..."
+                      value={meetingUrl}
+                      onChange={(e) => setMeetingUrl(e.target.value)}
+                      className="bg-white/10 border-white/20 text-white placeholder:text-slate-400"
+                      required
+                    />
                     <p className="text-sm text-slate-400">
                       Supports Google Meet, Zoom, Microsoft Teams, and other popular platforms
                     </p>
                   </div>
 
-                  <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white">
-                    {loading ? 'Preparing...' : <>
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+                  >
+                    {loading ? 'Starting Bot...' : (
+                      <>
                         <Play className="h-4 w-4 mr-2" />
-                        Prepare for Recording
-                      </>}
+                        Start Meeting Bot
+                      </>
+                    )}
                   </Button>
                 </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="record" className="mt-8">
-            <Card className="bg-white/10 backdrop-blur-md border-white/20">
-              <CardContent className="p-12">
-                <RoundRecordingButton onTranscription={handleTranscription} />
               </CardContent>
             </Card>
           </TabsContent>
@@ -202,7 +268,13 @@ const JoinMeeting = () => {
                   <div className="space-y-2">
                     <Label htmlFor="audio-file" className="text-white">Audio File</Label>
                     <div className="border-2 border-dashed border-white/20 rounded-lg p-8 text-center hover:border-purple-400 transition-colors">
-                      <input id="audio-file" type="file" accept="audio/*" onChange={handleFileChange} className="hidden" />
+                      <input
+                        id="audio-file"
+                        type="file"
+                        accept="audio/*"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
                       <label htmlFor="audio-file" className="cursor-pointer flex flex-col items-center gap-4">
                         <Upload className="h-12 w-12 text-slate-400" />
                         <div>
@@ -217,11 +289,17 @@ const JoinMeeting = () => {
                     </div>
                   </div>
 
-                  <Button type="submit" disabled={loading || !selectedFile} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white">
-                    {loading ? 'Processing...' : <>
+                  <Button
+                    type="submit"
+                    disabled={loading || !selectedFile}
+                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+                  >
+                    {loading ? 'Processing...' : (
+                      <>
                         <Upload className="h-4 w-4 mr-2" />
                         Start Transcription
-                      </>}
+                      </>
+                    )}
                   </Button>
                 </form>
               </CardContent>
@@ -230,27 +308,53 @@ const JoinMeeting = () => {
         </Tabs>
 
         {/* Transcription Results */}
-        {transcriptionResults.length > 0 && <Card className="mt-8 bg-white/10 backdrop-blur-md border-white/20">
+        {transcriptionResults.length > 0 && (
+          <Card className="mt-8 bg-white/10 backdrop-blur-md border-white/20">
             <CardHeader>
               <CardTitle className="text-white">Transcription Results</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {transcriptionResults.map((text, index) => <div key={index} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                {transcriptionResults.map((text, index) => (
+                  <div key={index} className="bg-white/5 rounded-lg p-4 border border-white/10">
                     <p className="text-slate-300 leading-relaxed">{text}</p>
-                  </div>)}
+                  </div>
+                ))}
               </div>
               <div className="mt-4 flex gap-2">
-                <Button onClick={() => navigator.clipboard.writeText(transcriptionResults.join(' '))} variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
+                <Button
+                  onClick={handleSaveTranscription}
+                  disabled={saving}
+                  className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white"
+                >
+                  {saving ? 'Saving...' : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save to Notes
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={() => navigator.clipboard.writeText(transcriptionResults.join(' '))}
+                  variant="outline"
+                  className="border-white/30 hover:bg-white/10 text-slate-950"
+                >
                   Copy All
                 </Button>
-                <Button onClick={() => setTranscriptionResults([])} variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950 text-base">
+                <Button
+                  onClick={() => setTranscriptionResults([])}
+                  variant="outline"
+                  className="border-white/30 hover:bg-white/10 text-slate-950"
+                >
                   Clear
                 </Button>
               </div>
             </CardContent>
-          </Card>}
+          </Card>
+        )}
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default JoinMeeting;

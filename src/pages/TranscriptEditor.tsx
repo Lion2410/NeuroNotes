@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, Download, Share, Users, Edit3, FileText, Clock, Sparkles } from 'lucide-react';
@@ -6,13 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+
 const TranscriptEditor = () => {
-  const {
-    id
-  } = useParams();
-  const {
-    toast
-  } = useToast();
+  const { id } = useParams();
+  const { toast } = useToast();
+  const { user } = useAuth();
   const [transcript, setTranscript] = useState(`[00:00:15] John Smith: Good morning everyone, thanks for joining today's weekly standup. Let's start with our progress updates.
 
 [00:00:25] Sarah Johnson: I'll go first. This week I completed the user authentication module and started working on the dashboard components. I'm about 80% done with the task and should finish by tomorrow.
@@ -31,6 +32,8 @@ const TranscriptEditor = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [summary, setSummary] = useState('');
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
   const meetingInfo = {
     title: 'Weekly Team Standup',
     date: '2024-06-04',
@@ -38,27 +41,55 @@ const TranscriptEditor = () => {
     participants: ['John Smith', 'Sarah Johnson', 'Mike Chen'],
     status: 'completed'
   };
-  const handleSave = () => {
-    toast({
-      title: "Transcript Saved",
-      description: "Your changes have been saved successfully."
-    });
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      if (user && id) {
+        const { error } = await supabase
+          .from('transcriptions')
+          .update({
+            content: transcript,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', id)
+          .eq('user_id', user.id);
+
+        if (error) {
+          throw error;
+        }
+      }
+
+      toast({
+        title: "Transcript Saved",
+        description: "Your changes have been saved successfully."
+      });
+    } catch (error: any) {
+      toast({
+        title: "Save Failed",
+        description: error.message || "Failed to save transcript. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
+
   const handleExport = () => {
     const element = document.createElement('a');
-    const file = new Blob([transcript], {
-      type: 'text/plain'
-    });
+    const file = new Blob([transcript], { type: 'text/plain' });
     element.href = URL.createObjectURL(file);
     element.download = `${meetingInfo.title.replace(/\s+/g, '_')}_transcript.txt`;
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
+    
     toast({
       title: "Export Complete",
       description: "Transcript has been downloaded successfully."
     });
   };
+
   const handleShare = async () => {
     const shareUrl = `${window.location.origin}/transcript/${id}`;
     try {
@@ -75,11 +106,13 @@ const TranscriptEditor = () => {
       });
     }
   };
+
   const generateSummary = async () => {
     setIsGeneratingSummary(true);
     try {
       // Simulate AI summary generation
       await new Promise(resolve => setTimeout(resolve, 2000));
+      
       const generatedSummary = `Meeting Summary:
 
 Key Discussion Points:
@@ -97,10 +130,28 @@ Action Items:
 Participants: John Smith (facilitator), Sarah Johnson (Developer), Mike Chen (Developer)
 Duration: 32 minutes
 Status: All tasks on track, no major blockers identified`;
+
       setSummary(generatedSummary);
+
+      // Save summary to database
+      if (user && id) {
+        const { error } = await supabase
+          .from('transcriptions')
+          .update({
+            summary: generatedSummary,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', id)
+          .eq('user_id', user.id);
+
+        if (error) {
+          console.error('Failed to save summary:', error);
+        }
+      }
+
       toast({
         title: "Summary Generated",
-        description: "AI-powered meeting summary has been created."
+        description: "AI-powered meeting summary has been created and saved."
       });
     } catch (error) {
       toast({
@@ -112,7 +163,9 @@ Status: All tasks on track, no major blockers identified`;
       setIsGeneratingSummary(false);
     }
   };
-  return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       {/* Header */}
       <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -121,7 +174,7 @@ Status: All tasks on track, no major blockers identified`;
               <ArrowLeft className="h-6 w-6" />
             </Link>
             <div className="flex items-center space-x-2">
-              <img src="/lovable-uploads/e8e442bd-846b-4e60-b16a-3043d419243f.png" alt="NeuroNotes" className="h-8 w-auto" />
+              <img src="/lovable-uploads/451cbc9a-f382-4835-afd3-01127abc2f41.png" alt="NeuroNotes" className="h-8 w-auto" />
               <span className="text-2xl font-bold text-white">NeuroNotes</span>
             </div>
             <span className="text-slate-400">/</span>
@@ -132,9 +185,14 @@ Status: All tasks on track, no major blockers identified`;
               <Users className="h-4 w-4 mr-2" />
               Collaborators
             </Button>
-            <Button onClick={handleSave} variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
+            <Button 
+              onClick={handleSave} 
+              disabled={isSaving}
+              variant="outline" 
+              className="border-white/30 hover:bg-white/10 text-slate-950"
+            >
               <Save className="h-4 w-4 mr-2" />
-              Save
+              {isSaving ? 'Saving...' : 'Save'}
             </Button>
           </div>
         </div>
@@ -162,7 +220,11 @@ Status: All tasks on track, no major blockers identified`;
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button onClick={() => setIsEditing(!isEditing)} variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
+                    <Button
+                      onClick={() => setIsEditing(!isEditing)}
+                      variant="outline"
+                      className="border-white/30 hover:bg-white/10 text-slate-950"
+                    >
                       <Edit3 className="h-4 w-4 mr-2" />
                       {isEditing ? 'View Mode' : 'Edit Mode'}
                     </Button>
@@ -180,16 +242,26 @@ Status: All tasks on track, no major blockers identified`;
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {isEditing ? <Textarea value={transcript} onChange={e => setTranscript(e.target.value)} className="min-h-[500px] bg-white/5 border-white/20 text-white placeholder:text-slate-400 resize-none" placeholder="Transcript content..." /> : <div className="bg-white/5 border border-white/20 rounded-md p-4 min-h-[500px]">
+                {isEditing ? (
+                  <Textarea
+                    value={transcript}
+                    onChange={(e) => setTranscript(e.target.value)}
+                    className="min-h-[500px] bg-white/5 border-white/20 text-white placeholder:text-slate-400 resize-none"
+                    placeholder="Transcript content..."
+                  />
+                ) : (
+                  <div className="bg-white/5 border border-white/20 rounded-md p-4 min-h-[500px]">
                     <pre className="text-white whitespace-pre-wrap font-mono text-sm leading-relaxed">
                       {transcript}
                     </pre>
-                  </div>}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
             {/* Summary Section */}
-            {summary && <Card className="bg-white/10 backdrop-blur-md border-white/20">
+            {summary && (
+              <Card className="bg-white/10 backdrop-blur-md border-white/20">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-yellow-400" />
@@ -203,19 +275,32 @@ Status: All tasks on track, no major blockers identified`;
                     </pre>
                   </div>
                 </CardContent>
-              </Card>}
+              </Card>
+            )}
 
             {/* Action Buttons */}
             <div className="flex flex-wrap gap-4">
-              <Button onClick={generateSummary} disabled={isGeneratingSummary} className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white">
+              <Button
+                onClick={generateSummary}
+                disabled={isGeneratingSummary}
+                className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white"
+              >
                 <Sparkles className="h-4 w-4 mr-2" />
                 {isGeneratingSummary ? 'Generating...' : 'Generate Summary'}
               </Button>
-              <Button onClick={handleExport} variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
+              <Button
+                onClick={handleExport}
+                variant="outline"
+                className="border-white/30 hover:bg-white/10 text-slate-950"
+              >
                 <Download className="h-4 w-4 mr-2" />
                 Export Transcript
               </Button>
-              <Button onClick={handleShare} variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
+              <Button
+                onClick={handleShare}
+                variant="outline"
+                className="border-white/30 hover:bg-white/10 text-slate-950"
+              >
                 <Share className="h-4 w-4 mr-2" />
                 Share Link
               </Button>
@@ -234,14 +319,16 @@ Status: All tasks on track, no major blockers identified`;
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {meetingInfo.participants.map((participant, index) => <div key={index} className="flex items-center gap-3">
+                  {meetingInfo.participants.map((participant, index) => (
+                    <div key={index} className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-gradient-to-r from-teal-500 to-blue-500 rounded-full flex items-center justify-center">
                         <span className="text-white text-sm font-medium">
                           {participant.split(' ').map(n => n[0]).join('')}
                         </span>
                       </div>
                       <span className="text-white text-sm">{participant}</span>
-                    </div>)}
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -292,6 +379,8 @@ Status: All tasks on track, no major blockers identified`;
           </div>
         </div>
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default TranscriptEditor;

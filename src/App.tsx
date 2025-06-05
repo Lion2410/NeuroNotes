@@ -13,6 +13,8 @@ import Dashboard from "./pages/Dashboard";
 import JoinMeeting from "./pages/JoinMeeting";
 import TranscriptEditor from "./pages/TranscriptEditor";
 import Profile from "./pages/Profile";
+import Notes from "./pages/Notes";
+import Team from "./pages/Team";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -57,6 +59,22 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <TranscriptEditor />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/notes" 
+              element={
+                <ProtectedRoute>
+                  <Notes />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/team" 
+              element={
+                <ProtectedRoute>
+                  <Team />
                 </ProtectedRoute>
               } 
             />
