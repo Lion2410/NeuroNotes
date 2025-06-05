@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, User, Save, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,21 +11,36 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
 const Profile = () => {
-  const { user } = useAuth();
+  const { user, refreshSession } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     firstName: user?.user_metadata?.first_name || '',
     lastName: user?.user_metadata?.last_name || '',
     email: user?.email || '',
-    company: '',
-    jobTitle: '',
-    bio: '',
-    phone: ''
+    company: user?.user_metadata?.company || '',
+    jobTitle: user?.user_metadata?.job_title || '',
+    bio: user?.user_metadata?.bio || '',
+    phone: user?.user_metadata?.phone || ''
   });
   const [isLoading, setIsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.user_metadata?.avatar_url || null);
+
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        firstName: user?.user_metadata?.first_name || '',
+        lastName: user?.user_metadata?.last_name || '',
+        email: user?.email || '',
+        company: user?.user_metadata?.company || '',
+        jobTitle: user?.user_metadata?.job_title || '',
+        bio: user?.user_metadata?.bio || '',
+        phone: user?.user_metadata?.phone || ''
+      });
+      setAvatarUrl(user?.user_metadata?.avatar_url || null);
+    }
+  }, [user]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -34,6 +48,19 @@ const Profile = () => {
       ...prev,
       [name]: value
     }));
+  };
+
+  const handleWithRetry = async (operation: () => Promise<any>, operationName: string) => {
+    try {
+      return await operation();
+    } catch (error: any) {
+      if (error.message?.includes('expired') || error.message?.includes('JWT')) {
+        console.log(`${operationName} failed, refreshing session and retrying...`);
+        await refreshSession();
+        return await operation();
+      }
+      throw error;
+    }
   };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -46,28 +73,40 @@ const Profile = () => {
 
       const file = event.target.files[0];
       const fileExt = file.name.split('.').pop();
-      const fileName = `${user?.id}.${fileExt}`;
+      const fileName = `${user?.id}-${Date.now()}.${fileExt}`;
       const filePath = `avatars/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
+      await handleWithRetry(async () => {
+        const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(filePath, file, { upsert: true });
 
-      if (uploadError) {
-        throw uploadError;
-      }
+        if (uploadError) {
+          throw uploadError;
+        }
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
+        const { data: { publicUrl } } = supabase.storage
+          .from('avatars')
+          .getPublicUrl(filePath);
 
-      setAvatarUrl(publicUrl);
+        setAvatarUrl(publicUrl);
+
+        // Update user metadata with new avatar URL
+        const { error: updateError } = await supabase.auth.updateUser({
+          data: { avatar_url: publicUrl }
+        });
+
+        if (updateError) {
+          throw updateError;
+        }
+      }, 'Avatar upload');
       
       toast({
         title: "Avatar Updated",
         description: "Your profile picture has been updated successfully."
       });
     } catch (error: any) {
+      console.error('Avatar upload error:', error);
       toast({
         title: "Upload Failed",
         description: error.message,
@@ -83,42 +122,46 @@ const Profile = () => {
     setIsLoading(true);
     
     try {
-      // Update user metadata
-      const { error: updateError } = await supabase.auth.updateUser({
-        data: {
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          company: formData.company,
-          job_title: formData.jobTitle,
-          bio: formData.bio,
-          phone: formData.phone
-        }
-      });
-
-      if (updateError) {
-        throw updateError;
-      }
-
-      // Update profile in database
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert({
-          id: user?.id,
-          email: user?.email,
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          avatar_url: avatarUrl
+      await handleWithRetry(async () => {
+        // Update user metadata
+        const { error: updateError } = await supabase.auth.updateUser({
+          data: {
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            company: formData.company,
+            job_title: formData.jobTitle,
+            bio: formData.bio,
+            phone: formData.phone,
+            avatar_url: avatarUrl
+          }
         });
 
-      if (profileError) {
-        throw profileError;
-      }
+        if (updateError) {
+          throw updateError;
+        }
+
+        // Update profile in database
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: user?.id,
+            email: user?.email,
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            avatar_url: avatarUrl
+          });
+
+        if (profileError) {
+          throw profileError;
+        }
+      }, 'Profile update');
 
       toast({
         title: "Profile Updated",
         description: "Your profile has been successfully updated."
       });
     } catch (error: any) {
+      console.error('Profile update error:', error);
       toast({
         title: "Update Failed",
         description: error.message || "Failed to update profile. Please try again.",
@@ -139,7 +182,7 @@ const Profile = () => {
               <ArrowLeft className="h-6 w-6" />
             </Link>
             <div className="flex items-center space-x-2">
-              <img src="/lovable-uploads/451cbc9a-f382-4835-afd3-01127abc2f41.png" alt="NeuroNotes" className="h-8 w-auto" />
+              <img src="/lovable-uploads/e8e442bd-846b-4e60-b16a-3043d419243f.png" alt="NeuroNotes" className="h-8 w-auto" />
               <span className="text-2xl font-bold text-white">NeuroNotes</span>
             </div>
           </div>

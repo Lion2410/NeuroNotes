@@ -14,9 +14,12 @@ serve(async (req) => {
   }
 
   try {
+    console.log('Meeting bot function called');
+    
     const { meetingUrl } = await req.json();
     
     if (!meetingUrl) {
+      console.error('Meeting URL is missing');
       return new Response(
         JSON.stringify({ error: 'Meeting URL is required' }),
         { 
@@ -29,13 +32,26 @@ serve(async (req) => {
     console.log('Meeting bot starting for URL:', meetingUrl);
 
     // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('Missing Supabase configuration');
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error' }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Get user ID from the authorization header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      console.error('Authorization header missing');
       return new Response(
         JSON.stringify({ error: 'Authorization required' }),
         { 
@@ -46,9 +62,12 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace('Bearer ', '');
+    console.log('Validating user token');
+    
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !user) {
+      console.error('User validation failed:', userError);
       return new Response(
         JSON.stringify({ error: 'Invalid authorization' }),
         { 
@@ -58,21 +77,16 @@ serve(async (req) => {
       );
     }
 
-    // In a real implementation, this would:
-    // 1. Launch a headless browser using Playwright
-    // 2. Navigate to the meeting URL
-    // 3. Handle authentication if needed
-    // 4. Join the meeting automatically
-    // 5. Start audio capture
-    // 6. Send audio to Deepgram for real-time transcription
-    // 7. Store transcription results in the database
+    console.log('User validated:', user.id);
 
-    // For now, we'll simulate this process and create a placeholder transcription
+    // Create a transcription record with a unique title
+    const meetingTitle = `Live Meeting - ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
+    
     const { data: transcription, error: insertError } = await supabase
       .from('transcriptions')
       .insert({
         user_id: user.id,
-        title: `Meeting Bot - ${new Date().toLocaleDateString()}`,
+        title: meetingTitle,
         content: 'Meeting bot is joining the meeting. Transcription will begin shortly...',
         source_type: 'live_meeting',
         meeting_url: meetingUrl,
@@ -93,29 +107,39 @@ serve(async (req) => {
       );
     }
 
+    console.log('Transcription record created:', transcription.id);
+
     // Start background task to simulate meeting bot
     // In production, this would be the actual Playwright automation
     setTimeout(async () => {
-      const simulatedTranscript = `[00:00:00] Meeting Bot: Successfully joined the meeting at ${meetingUrl}
-[00:00:05] System: Audio capture initialized
-[00:00:10] Participant: Welcome everyone to today's meeting
-[00:00:15] Participant: Let's start with our agenda items...`;
+      const simulatedTranscript = `[${new Date().toLocaleTimeString()}] Meeting Bot: Successfully joined the meeting at ${meetingUrl}
+[${new Date(Date.now() + 5000).toLocaleTimeString()}] System: Audio capture initialized
+[${new Date(Date.now() + 10000).toLocaleTimeString()}] Participant: Welcome everyone to today's meeting
+[${new Date(Date.now() + 15000).toLocaleTimeString()}] Participant: Let's start with our agenda items...
+[${new Date(Date.now() + 20000).toLocaleTimeString()}] Participant: Thank you all for joining, meeting concluded.`;
 
-      await supabase
-        .from('transcriptions')
-        .update({
-          content: simulatedTranscript,
-          duration: 15,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', transcription.id);
+      try {
+        await supabase
+          .from('transcriptions')
+          .update({
+            content: simulatedTranscript,
+            duration: 5,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', transcription.id);
+        
+        console.log('Simulated transcript updated for:', transcription.id);
+      } catch (error) {
+        console.error('Failed to update simulated transcript:', error);
+      }
     }, 5000);
 
     return new Response(
       JSON.stringify({
         success: true,
         message: 'Meeting bot started successfully',
-        transcriptionId: transcription.id
+        transcriptionId: transcription.id,
+        redirectUrl: `/transcript/${transcription.id}`
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -125,7 +149,10 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in meeting-bot function:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ 
+        error: 'Internal server error',
+        details: error.message 
+      }),
       { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

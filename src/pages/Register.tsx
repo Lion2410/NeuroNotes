@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
@@ -7,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+
 const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -26,17 +28,20 @@ const Register = () => {
     toast
   } = useToast();
   const navigate = useNavigate();
+  
   useEffect(() => {
     if (user) {
       navigate('/dashboard');
     }
   }, [user, navigate]);
+  
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({
       ...prev,
       [e.target.name]: e.target.value
     }));
   };
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
@@ -82,12 +87,13 @@ const Register = () => {
       setLoading(false);
     }
   };
+  
   return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center space-x-2">
-            <img src="/lovable-uploads/451cbc9a-f382-4835-afd3-01127abc2f41.png" alt="NeuroNotes" className="h-10 w-auto" />
+            <img src="/lovable-uploads/e8e442bd-846b-4e60-b16a-3043d419243f.png" alt="NeuroNotes" className="h-10 w-auto" />
             <span className="text-3xl font-bold text-white">NeuroNotes</span>
           </Link>
         </div>
@@ -105,13 +111,13 @@ const Register = () => {
                   <Label htmlFor="firstName" className="text-white">First Name</Label>
                   <div className="relative">
                     <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                    <Input id="firstName" name="firstName" type="text" placeholder="John" value={formData.firstName} onChange={handleChange} className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-slate-400" required />
+                    <Input id="firstName" name="firstName" type="text" placeholder="First name" value={formData.firstName} onChange={handleChange} className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-slate-400" required />
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="lastName" className="text-white">Last Name</Label>
-                  <Input id="lastName" name="lastName" type="text" placeholder="Doe" value={formData.lastName} onChange={handleChange} className="bg-white/10 border-white/20 text-white placeholder:text-slate-400" required />
+                  <Input id="lastName" name="lastName" type="text" placeholder="Last name" value={formData.lastName} onChange={handleChange} className="bg-white/10 border-white/20 text-white placeholder:text-slate-400" required />
                 </div>
               </div>
 
@@ -119,7 +125,7 @@ const Register = () => {
                 <Label htmlFor="email" className="text-white">Email</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                  <Input id="email" name="email" type="email" placeholder="john@example.com" value={formData.email} onChange={handleChange} className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-slate-400" required />
+                  <Input id="email" name="email" type="email" placeholder="Enter your email" value={formData.email} onChange={handleChange} className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-slate-400" required />
                 </div>
               </div>
 
@@ -161,4 +167,5 @@ const Register = () => {
       </div>
     </div>;
 };
+
 export default Register;
