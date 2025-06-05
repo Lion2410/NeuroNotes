@@ -48,6 +48,7 @@ export type Database = {
           id: string
           meeting_url: string | null
           source_type: string
+          summary: string | null
           title: string
           updated_at: string
           user_id: string
@@ -60,6 +61,7 @@ export type Database = {
           id?: string
           meeting_url?: string | null
           source_type?: string
+          summary?: string | null
           title: string
           updated_at?: string
           user_id: string
@@ -72,6 +74,7 @@ export type Database = {
           id?: string
           meeting_url?: string | null
           source_type?: string
+          summary?: string | null
           title?: string
           updated_at?: string
           user_id?: string
