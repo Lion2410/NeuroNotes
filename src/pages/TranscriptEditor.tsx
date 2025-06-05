@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, Download, Share, Users, Edit3, FileText, Clock, Sparkles } from 'lucide-react';
@@ -7,10 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-
 const TranscriptEditor = () => {
-  const { id } = useParams();
-  const { toast } = useToast();
+  const {
+    id
+  } = useParams();
+  const {
+    toast
+  } = useToast();
   const [transcript, setTranscript] = useState(`[00:00:15] John Smith: Good morning everyone, thanks for joining today's weekly standup. Let's start with our progress updates.
 
 [00:00:25] Sarah Johnson: I'll go first. This week I completed the user authentication module and started working on the dashboard components. I'm about 80% done with the task and should finish by tomorrow.
@@ -26,11 +28,9 @@ const TranscriptEditor = () => {
 [00:01:35] Mike Chen: No blockers here. The API documentation is well-structured so integration has been smooth.
 
 [00:01:45] John Smith: Perfect. Let's wrap up with action items for next week...`);
-  
   const [isEditing, setIsEditing] = useState(false);
   const [summary, setSummary] = useState('');
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
-
   const meetingInfo = {
     title: 'Weekly Team Standup',
     date: '2024-06-04',
@@ -38,53 +38,48 @@ const TranscriptEditor = () => {
     participants: ['John Smith', 'Sarah Johnson', 'Mike Chen'],
     status: 'completed'
   };
-
   const handleSave = () => {
     toast({
       title: "Transcript Saved",
-      description: "Your changes have been saved successfully.",
+      description: "Your changes have been saved successfully."
     });
   };
-
   const handleExport = () => {
     const element = document.createElement('a');
-    const file = new Blob([transcript], { type: 'text/plain' });
+    const file = new Blob([transcript], {
+      type: 'text/plain'
+    });
     element.href = URL.createObjectURL(file);
     element.download = `${meetingInfo.title.replace(/\s+/g, '_')}_transcript.txt`;
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
-    
     toast({
       title: "Export Complete",
-      description: "Transcript has been downloaded successfully.",
+      description: "Transcript has been downloaded successfully."
     });
   };
-
   const handleShare = async () => {
     const shareUrl = `${window.location.origin}/transcript/${id}`;
-    
     try {
       await navigator.clipboard.writeText(shareUrl);
       toast({
         title: "Link Copied",
-        description: "Shareable link has been copied to your clipboard.",
+        description: "Shareable link has been copied to your clipboard."
       });
     } catch (error) {
       toast({
         title: "Share Failed",
         description: "Failed to copy share link. Please try again.",
-        variant: "destructive",
+        variant: "destructive"
       });
     }
   };
-
   const generateSummary = async () => {
     setIsGeneratingSummary(true);
     try {
       // Simulate AI summary generation
       await new Promise(resolve => setTimeout(resolve, 2000));
-      
       const generatedSummary = `Meeting Summary:
 
 Key Discussion Points:
@@ -102,25 +97,22 @@ Action Items:
 Participants: John Smith (facilitator), Sarah Johnson (Developer), Mike Chen (Developer)
 Duration: 32 minutes
 Status: All tasks on track, no major blockers identified`;
-
       setSummary(generatedSummary);
       toast({
         title: "Summary Generated",
-        description: "AI-powered meeting summary has been created.",
+        description: "AI-powered meeting summary has been created."
       });
     } catch (error) {
       toast({
         title: "Summary Failed",
         description: "Failed to generate summary. Please try again.",
-        variant: "destructive",
+        variant: "destructive"
       });
     } finally {
       setIsGeneratingSummary(false);
     }
   };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
+  return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       {/* Header */}
       <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -140,7 +132,7 @@ Status: All tasks on track, no major blockers identified`;
               <Users className="h-4 w-4 mr-2" />
               Collaborators
             </Button>
-            <Button onClick={handleSave} variant="outline" className="border-white/30 hover:bg-white/10 text-white">
+            <Button onClick={handleSave} variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
               <Save className="h-4 w-4 mr-2" />
               Save
             </Button>
@@ -170,7 +162,7 @@ Status: All tasks on track, no major blockers identified`;
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button onClick={() => setIsEditing(!isEditing)} variant="outline" className="border-white/30 hover:bg-white/10 text-white">
+                    <Button onClick={() => setIsEditing(!isEditing)} variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
                       <Edit3 className="h-4 w-4 mr-2" />
                       {isEditing ? 'View Mode' : 'Edit Mode'}
                     </Button>
@@ -188,26 +180,16 @@ Status: All tasks on track, no major blockers identified`;
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {isEditing ? (
-                  <Textarea 
-                    value={transcript} 
-                    onChange={(e) => setTranscript(e.target.value)} 
-                    className="min-h-[500px] bg-white/5 border-white/20 text-white placeholder:text-slate-400 resize-none" 
-                    placeholder="Transcript content..." 
-                  />
-                ) : (
-                  <div className="bg-white/5 border border-white/20 rounded-md p-4 min-h-[500px]">
+                {isEditing ? <Textarea value={transcript} onChange={e => setTranscript(e.target.value)} className="min-h-[500px] bg-white/5 border-white/20 text-white placeholder:text-slate-400 resize-none" placeholder="Transcript content..." /> : <div className="bg-white/5 border border-white/20 rounded-md p-4 min-h-[500px]">
                     <pre className="text-white whitespace-pre-wrap font-mono text-sm leading-relaxed">
                       {transcript}
                     </pre>
-                  </div>
-                )}
+                  </div>}
               </CardContent>
             </Card>
 
             {/* Summary Section */}
-            {summary && (
-              <Card className="bg-white/10 backdrop-blur-md border-white/20">
+            {summary && <Card className="bg-white/10 backdrop-blur-md border-white/20">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-yellow-400" />
@@ -221,24 +203,19 @@ Status: All tasks on track, no major blockers identified`;
                     </pre>
                   </div>
                 </CardContent>
-              </Card>
-            )}
+              </Card>}
 
             {/* Action Buttons */}
             <div className="flex flex-wrap gap-4">
-              <Button 
-                onClick={generateSummary}
-                disabled={isGeneratingSummary}
-                className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white"
-              >
+              <Button onClick={generateSummary} disabled={isGeneratingSummary} className="bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-700 hover:to-blue-700 text-white">
                 <Sparkles className="h-4 w-4 mr-2" />
                 {isGeneratingSummary ? 'Generating...' : 'Generate Summary'}
               </Button>
-              <Button onClick={handleExport} variant="outline" className="border-white/30 hover:bg-white/10 text-white">
+              <Button onClick={handleExport} variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
                 <Download className="h-4 w-4 mr-2" />
                 Export Transcript
               </Button>
-              <Button onClick={handleShare} variant="outline" className="border-white/30 hover:bg-white/10 text-white">
+              <Button onClick={handleShare} variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
                 <Share className="h-4 w-4 mr-2" />
                 Share Link
               </Button>
@@ -257,16 +234,14 @@ Status: All tasks on track, no major blockers identified`;
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {meetingInfo.participants.map((participant, index) => (
-                    <div key={index} className="flex items-center gap-3">
+                  {meetingInfo.participants.map((participant, index) => <div key={index} className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-gradient-to-r from-teal-500 to-blue-500 rounded-full flex items-center justify-center">
                         <span className="text-white text-sm font-medium">
                           {participant.split(' ').map(n => n[0]).join('')}
                         </span>
                       </div>
                       <span className="text-white text-sm">{participant}</span>
-                    </div>
-                  ))}
+                    </div>)}
                 </div>
               </CardContent>
             </Card>
@@ -317,8 +292,6 @@ Status: All tasks on track, no major blockers identified`;
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default TranscriptEditor;
