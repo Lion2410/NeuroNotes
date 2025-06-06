@@ -265,13 +265,13 @@ const Dashboard = () => {
 
         {/* Quick Start Guide */}
         <Card className="bg-gradient-to-r from-purple-600/20 to-purple-800/20 backdrop-blur-md border-white/20">
-          <CardHeader className="bg-purple-900">
+          <CardHeader className="bg-[#2e0936]">
             <CardTitle className="text-white text-xl">Getting Started</CardTitle>
             <CardDescription className="text-slate-300">
               Follow these steps to start transcribing your first session
             </CardDescription>
           </CardHeader>
-          <CardContent className="bg-purple-900">
+          <CardContent className="bg-[4F2958] bg-[#2d0935]">
             <div className="grid md:grid-cols-3 gap-6">
               <div className="text-center">
                 <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 bg-purple-600">
