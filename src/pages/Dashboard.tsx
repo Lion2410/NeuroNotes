@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LogOut, Plus, Search, Filter, Play, Users, FileText, Download, Share, User } from 'lucide-react';
@@ -9,7 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-
 interface Note {
   id: string;
   title: string;
@@ -18,7 +16,6 @@ interface Note {
   source_type: string;
   content: string;
 }
-
 const Dashboard = () => {
   const [activeSession, setActiveSession] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -31,26 +28,25 @@ const Dashboard = () => {
     signOut
   } = useAuth();
   const navigate = useNavigate();
-  const { toast } = useToast();
-
+  const {
+    toast
+  } = useToast();
   useEffect(() => {
     if (user) {
       fetchNotes();
     }
   }, [user]);
-
   const fetchNotes = async () => {
     try {
-      const { data, error } = await supabase
-        .from('transcriptions')
-        .select('*')
-        .eq('user_id', user?.id)
-        .order('created_at', { ascending: false });
-
+      const {
+        data,
+        error
+      } = await supabase.from('transcriptions').select('*').eq('user_id', user?.id).order('created_at', {
+        ascending: false
+      });
       if (error) {
         throw error;
       }
-
       setNotes(data || []);
       setTotalNotes(data?.length || 0);
     } catch (error: any) {
@@ -63,7 +59,6 @@ const Dashboard = () => {
       setLoading(false);
     }
   };
-
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
@@ -110,7 +105,6 @@ const Dashboard = () => {
     const matchesStatus = statusFilter === 'all' || note.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
-
   return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       {/* Header */}
       <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
@@ -214,10 +208,7 @@ const Dashboard = () => {
           </div>
 
           <div className="space-y-4">
-            {loading ? (
-              <div className="text-center text-white">Loading notes...</div>
-            ) : filteredNotes.length === 0 ? (
-              <Card className="bg-white/10 backdrop-blur-md border-white/20">
+            {loading ? <div className="text-center text-white">Loading notes...</div> : filteredNotes.length === 0 ? <Card className="bg-white/10 backdrop-blur-md border-white/20">
                 <CardContent className="p-12 text-center">
                   <FileText className="h-16 w-16 text-slate-400 mx-auto mb-4" />
                   <h3 className="text-xl font-semibold text-white mb-2">No Notes Found</h3>
@@ -230,9 +221,7 @@ const Dashboard = () => {
                     </Button>
                   </Link>
                 </CardContent>
-              </Card>
-            ) : (
-              filteredNotes.map(note => <Card key={note.id} className="bg-[#5A2E8E]/20 backdrop-blur-md border-white/20 hover:bg-[#5A2E8E]/30 transition-all duration-300 cursor-pointer" onClick={() => navigate(`/transcript/${note.id}`)}>
+              </Card> : filteredNotes.map(note => <Card key={note.id} className="bg-[#5A2E8E]/20 backdrop-blur-md border-white/20 hover:bg-[#5A2E8E]/30 transition-all duration-300 cursor-pointer" onClick={() => navigate(`/transcript/${note.id}`)}>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
@@ -270,23 +259,22 @@ const Dashboard = () => {
                     </div>
                   </div>
                 </CardContent>
-              </Card>)
-            )}
+              </Card>)}
           </div>
         </div>
 
         {/* Quick Start Guide */}
         <Card className="bg-gradient-to-r from-purple-600/20 to-purple-800/20 backdrop-blur-md border-white/20">
-          <CardHeader className="bg-fuchsia-900">
+          <CardHeader className="bg-purple-900">
             <CardTitle className="text-white text-xl">Getting Started</CardTitle>
             <CardDescription className="text-slate-300">
               Follow these steps to start transcribing your first session
             </CardDescription>
           </CardHeader>
-          <CardContent className="bg-fuchsia-900">
+          <CardContent className="bg-purple-900">
             <div className="grid md:grid-cols-3 gap-6">
               <div className="text-center">
-                <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 bg-purple-600">
                   <span className="text-white font-bold">1</span>
                 </div>
                 <h3 className="text-white font-semibold mb-2">Start Session</h3>
