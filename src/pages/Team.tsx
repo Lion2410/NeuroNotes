@@ -1,14 +1,17 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Users, Mail, UserPlus } from 'lucide-react';
+import { ArrowLeft, Users, Mail, UserPlus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
 
 const Team = () => {
-  // Mock data for team members
-  const teamMembers = [
+  const [teamMembers, setTeamMembers] = useState([
     {
       id: 1,
       name: 'John Smith',
@@ -45,7 +48,15 @@ const Team = () => {
       status: 'inactive',
       joinDate: '2024-01-30'
     }
-  ];
+  ]);
+
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteForm, setInviteForm] = useState({
+    name: '',
+    email: '',
+    role: ''
+  });
+  const { toast } = useToast();
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('');
@@ -53,6 +64,41 @@ const Team = () => {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
+  };
+
+  const handleInviteMember = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!inviteForm.name || !inviteForm.email || !inviteForm.role) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all fields.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Add new member to the list
+    const newMember = {
+      id: teamMembers.length + 1,
+      name: inviteForm.name,
+      email: inviteForm.email,
+      role: inviteForm.role,
+      avatar: null,
+      status: 'active' as const,
+      joinDate: new Date().toISOString().split('T')[0]
+    };
+
+    setTeamMembers([...teamMembers, newMember]);
+    
+    // Reset form and close dialog
+    setInviteForm({ name: '', email: '', role: '' });
+    setInviteDialogOpen(false);
+    
+    toast({
+      title: "Member Invited",
+      description: `${inviteForm.name} has been added to your team.`
+    });
   };
 
   return (
@@ -65,16 +111,69 @@ const Team = () => {
               <ArrowLeft className="h-6 w-6" />
             </Link>
             <div className="flex items-center space-x-2">
-              <img src="/lovable-uploads/451cbc9a-f382-4835-afd3-01127abc2f41.png" alt="NeuroNotes" className="h-8 w-auto" />
+              <img src="/lovable-uploads/a8794a28-d1ea-4182-a872-01c163c23ee5.png" alt="NeuroNotes" className="h-12 w-auto" />
               <span className="text-2xl font-bold text-white">NeuroNotes</span>
             </div>
             <span className="text-slate-400">/</span>
             <span className="text-white font-medium">Team Members</span>
           </div>
-          <Button className="bg-purple-600 hover:bg-purple-700 text-white">
-            <UserPlus className="h-4 w-4 mr-2" />
-            Invite Member
-          </Button>
+          <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-purple-600 hover:bg-purple-700 text-white">
+                <UserPlus className="h-4 w-4 mr-2" />
+                Invite Member
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-slate-800 border-slate-700">
+              <DialogHeader>
+                <DialogTitle className="text-white">Invite Team Member</DialogTitle>
+                <DialogDescription className="text-slate-300">
+                  Add a new member to your team by filling out their information below.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleInviteMember} className="space-y-4">
+                <div>
+                  <Label htmlFor="name" className="text-white">Full Name</Label>
+                  <Input
+                    id="name"
+                    value={inviteForm.name}
+                    onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
+                    placeholder="Enter full name"
+                    className="bg-slate-700 border-slate-600 text-white"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="email" className="text-white">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={inviteForm.email}
+                    onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                    placeholder="Enter email address"
+                    className="bg-slate-700 border-slate-600 text-white"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="role" className="text-white">Role</Label>
+                  <Input
+                    id="role"
+                    value={inviteForm.role}
+                    onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
+                    placeholder="Enter role (e.g., Developer, Designer)"
+                    className="bg-slate-700 border-slate-600 text-white"
+                  />
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <Button type="button" variant="outline" onClick={() => setInviteDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" className="bg-purple-600 hover:bg-purple-700">
+                    Send Invite
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </header>
 

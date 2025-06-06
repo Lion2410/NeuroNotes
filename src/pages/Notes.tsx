@@ -67,6 +67,40 @@ const Notes = () => {
     navigate(`/transcript/${noteId}`);
   };
 
+  const handleExport = (note: Note, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const element = document.createElement('a');
+    const file = new Blob([note.content || ''], { type: 'text/plain' });
+    element.href = URL.createObjectURL(file);
+    element.download = `${note.title.replace(/\s+/g, '_')}.txt`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+    
+    toast({
+      title: "Export Complete",
+      description: "Note has been downloaded successfully."
+    });
+  };
+
+  const handleShare = async (noteId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const shareUrl = `${window.location.origin}/transcript/${noteId}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast({
+        title: "Link Copied",
+        description: "Shareable link has been copied to your clipboard."
+      });
+    } catch (error) {
+      toast({
+        title: "Share Failed",
+        description: "Failed to copy share link. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
   };
@@ -88,7 +122,7 @@ const Notes = () => {
               <ArrowLeft className="h-6 w-6" />
             </Link>
             <div className="flex items-center space-x-2">
-              <img src="/lovable-uploads/451cbc9a-f382-4835-afd3-01127abc2f41.png" alt="NeuroNotes" className="h-8 w-auto" />
+              <img src="/lovable-uploads/a8794a28-d1ea-4182-a872-01c163c23ee5.png" alt="NeuroNotes" className="h-12 w-auto" />
               <span className="text-2xl font-bold text-white">NeuroNotes</span>
             </div>
             <span className="text-slate-400">/</span>
@@ -170,10 +204,7 @@ const Notes = () => {
                       size="sm"
                       variant="outline"
                       className="border-white/30 hover:bg-white/10 text-slate-950 flex-1"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // Handle download
-                      }}
+                      onClick={(e) => handleExport(note, e)}
                     >
                       <Download className="h-4 w-4 mr-1" />
                       Export
@@ -182,10 +213,7 @@ const Notes = () => {
                       size="sm"
                       variant="outline"
                       className="border-white/30 hover:bg-white/10 text-slate-950 flex-1"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // Handle share
-                      }}
+                      onClick={(e) => handleShare(note.id, e)}
                     >
                       <Share className="h-4 w-4 mr-1" />
                       Share

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LogOut, Plus, Search, Filter, Play, Users, FileText, Download, Share, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -6,51 +7,69 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+
+interface Note {
+  id: string;
+  title: string;
+  created_at: string;
+  duration: number | null;
+  source_type: string;
+  content: string;
+}
+
 const Dashboard = () => {
   const [activeSession, setActiveSession] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [totalNotes, setTotalNotes] = useState(0);
+  const [loading, setLoading] = useState(true);
   const {
     user,
     signOut
   } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (user) {
+      fetchNotes();
+    }
+  }, [user]);
+
+  const fetchNotes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('transcriptions')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      setNotes(data || []);
+      setTotalNotes(data?.length || 0);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch notes.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
   };
 
-  // Mock data for notes (renamed from meetings)
-  const notes = [{
-    id: 1,
-    title: 'Weekly Team Standup',
-    date: '2024-06-04',
-    duration: '32 min',
-    status: 'completed',
-    transcript: true,
-    summary: true,
-    participants: 5
-  }, {
-    id: 2,
-    title: 'Product Strategy Review',
-    date: '2024-06-03',
-    duration: '1h 15min',
-    status: 'completed',
-    transcript: true,
-    summary: true,
-    participants: 8
-  }, {
-    id: 3,
-    title: 'Client Call - Project Alpha',
-    date: '2024-06-02',
-    duration: '45 min',
-    status: 'processing',
-    transcript: true,
-    summary: false,
-    participants: 3
-  }];
-
-  // Mock data for team members
+  // Mock data for team members - you'll need to implement team functionality
   const teamMembers = [{
     id: 1,
     name: 'John Smith',
@@ -73,18 +92,31 @@ const Dashboard = () => {
     role: 'QA Engineer'
   }];
 
+  // Get recent notes (latest 3)
+  const recentNotes = notes.slice(0, 3).map(note => ({
+    id: note.id,
+    title: note.title,
+    date: new Date(note.created_at).toLocaleDateString(),
+    duration: note.duration ? `${note.duration} min` : 'Unknown',
+    status: 'completed',
+    transcript: true,
+    summary: false,
+    participants: 1
+  }));
+
   // Filter notes based on search and status
-  const filteredNotes = notes.filter(note => {
+  const filteredNotes = recentNotes.filter(note => {
     const matchesSearch = note.title.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || note.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
   return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       {/* Header */}
       <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <img src="/lovable-uploads/451cbc9a-f382-4835-afd3-01127abc2f41.png" alt="NeuroNotes" className="h-8 w-auto" />
+            <img src="/lovable-uploads/a8794a28-d1ea-4182-a872-01c163c23ee5.png" alt="NeuroNotes" className="h-12 w-auto" />
             <span className="text-2xl font-bold text-white">NeuroNotes</span>
           </div>
           <div className="flex items-center space-x-4">
@@ -116,7 +148,7 @@ const Dashboard = () => {
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-white flex items-center gap-2">
-                  <img src="/lovable-uploads/451cbc9a-f382-4835-afd3-01127abc2f41.png" alt="NeuroNotes" className="h-5 w-5" />
+                  <img src="/lovable-uploads/a8794a28-d1ea-4182-a872-01c163c23ee5.png" alt="NeuroNotes" className="h-6 w-6" />
                   Session Status
                 </CardTitle>
                 <Badge variant={activeSession ? "default" : "secondary"} className={activeSession ? "bg-green-600" : "bg-slate-600"}>
@@ -145,8 +177,8 @@ const Dashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-white mb-2">{notes.length}</div>
-              <p className="text-slate-300">{notes.filter(n => n.status === 'completed').length} completed</p>
+              <div className="text-3xl font-bold text-white mb-2">{totalNotes}</div>
+              <p className="text-slate-300">{notes.length} total notes</p>
             </CardContent>
           </Card>
 
@@ -182,7 +214,25 @@ const Dashboard = () => {
           </div>
 
           <div className="space-y-4">
-            {filteredNotes.map(note => <Card key={note.id} className="bg-[#5A2E8E]/20 backdrop-blur-md border-white/20 hover:bg-[#5A2E8E]/30 transition-all duration-300 cursor-pointer" onClick={() => navigate(`/transcript/${note.id}`)}>
+            {loading ? (
+              <div className="text-center text-white">Loading notes...</div>
+            ) : filteredNotes.length === 0 ? (
+              <Card className="bg-white/10 backdrop-blur-md border-white/20">
+                <CardContent className="p-12 text-center">
+                  <FileText className="h-16 w-16 text-slate-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-white mb-2">No Notes Found</h3>
+                  <p className="text-slate-300 mb-6">
+                    {searchTerm ? 'No notes match your search.' : 'You haven\'t created any notes yet.'}
+                  </p>
+                  <Link to="/join-meeting">
+                    <Button className="bg-purple-600 hover:bg-purple-700 text-white">
+                      Create Your First Note
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            ) : (
+              filteredNotes.map(note => <Card key={note.id} className="bg-[#5A2E8E]/20 backdrop-blur-md border-white/20 hover:bg-[#5A2E8E]/30 transition-all duration-300 cursor-pointer" onClick={() => navigate(`/transcript/${note.id}`)}>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
@@ -220,7 +270,8 @@ const Dashboard = () => {
                     </div>
                   </div>
                 </CardContent>
-              </Card>)}
+              </Card>)
+            )}
           </div>
         </div>
 

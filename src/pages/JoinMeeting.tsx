@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Upload, Play, Save } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Upload, Play, Save, Mic, MicOff, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,9 +17,29 @@ const JoinMeeting = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [transcriptionResults, setTranscriptionResults] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
+  
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const wsRef = useRef<WebSocket | null>(null);
+  
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    return () => {
+      // Cleanup on unmount
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+    };
+  }, []);
 
   const handleJoinMeeting = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,8 +68,9 @@ const JoinMeeting = () => {
         description: "The bot is joining the meeting and will start transcribing."
       });
 
-      // The bot will handle joining and transcribing
-      // Results will be saved automatically to the database
+      // Start real-time transcription
+      startRealTimeTranscription();
+
     } catch (error: any) {
       toast({
         title: "Error",
@@ -58,6 +79,89 @@ const JoinMeeting = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const startRealTimeTranscription = async () => {
+    try {
+      // Request microphone access
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      // Create MediaRecorder
+      mediaRecorderRef.current = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus'
+      });
+
+      // Setup WebSocket connection for real-time transcription
+      wsRef.current = new WebSocket('wss://qlfqnclqowlljjcbeunz.functions.supabase.co/functions/v1/transcribe-audio-realtime');
+      
+      wsRef.current.onopen = () => {
+        setIsConnected(true);
+        toast({
+          title: "Connected",
+          description: "Real-time transcription started."
+        });
+      };
+
+      wsRef.current.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.transcript) {
+          setLiveTranscript(prev => prev + ' ' + data.transcript);
+        }
+      };
+
+      wsRef.current.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        toast({
+          title: "Connection Error",
+          description: "Failed to connect to transcription service.",
+          variant: "destructive"
+        });
+      };
+
+      // Setup MediaRecorder events
+      mediaRecorderRef.current.ondataavailable = async (event) => {
+        if (event.data.size > 0 && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          // Convert audio blob to base64 and send via WebSocket
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const base64 = (reader.result as string).split(',')[1];
+            wsRef.current?.send(JSON.stringify({
+              type: 'audio',
+              data: base64
+            }));
+          };
+          reader.readAsDataURL(event.data);
+        }
+      };
+
+      // Start recording
+      mediaRecorderRef.current.start(1000); // Send data every second
+      setIsRecording(true);
+
+    } catch (error) {
+      toast({
+        title: "Microphone Error",
+        description: "Failed to access microphone. Please check permissions.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const stopRealTimeTranscription = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+    setIsRecording(false);
+    setIsConnected(false);
+    
+    // Add the live transcript to results
+    if (liveTranscript.trim()) {
+      setTranscriptionResults(prev => [...prev, liveTranscript.trim()]);
+      setLiveTranscript('');
     }
   };
 
@@ -139,11 +243,11 @@ const JoinMeeting = () => {
         .from('transcriptions')
         .insert({
           user_id: user.id,
-          title: selectedFile?.name || 'Audio Transcription',
+          title: selectedFile?.name || 'Live Meeting Transcription',
           content: transcriptionResults.join(' '),
-          source_type: 'upload',
+          source_type: selectedFile ? 'upload' : 'meeting',
           audio_url: null,
-          meeting_url: null,
+          meeting_url: meetingUrl || null,
           duration: null
         });
 
@@ -159,6 +263,7 @@ const JoinMeeting = () => {
       // Clear the results after saving
       setTranscriptionResults([]);
       setSelectedFile(null);
+      setMeetingUrl('');
     } catch (error: any) {
       toast({
         title: "Save Failed",
@@ -176,11 +281,11 @@ const JoinMeeting = () => {
       <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <Link to="/dashboard" className="text-white hover:text-purple-400 transition-colors">
+            <Link to="/notes" className="text-white hover:text-purple-400 transition-colors">
               <ArrowLeft className="h-6 w-6" />
             </Link>
             <div className="flex items-center space-x-2">
-              <img src="/lovable-uploads/451cbc9a-f382-4835-afd3-01127abc2f41.png" alt="NeuroNotes" className="h-8 w-auto" />
+              <img src="/lovable-uploads/a8794a28-d1ea-4182-a872-01c163c23ee5.png" alt="NeuroNotes" className="h-12 w-auto" />
               <span className="text-2xl font-bold text-white">NeuroNotes</span>
             </div>
           </div>
@@ -235,19 +340,61 @@ const JoinMeeting = () => {
                     </p>
                   </div>
 
-                  <Button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
-                  >
-                    {loading ? 'Starting Bot...' : (
-                      <>
-                        <Play className="h-4 w-4 mr-2" />
-                        Start Meeting Bot
-                      </>
+                  <div className="flex gap-4">
+                    <Button
+                      type="submit"
+                      disabled={loading}
+                      className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+                    >
+                      {loading ? 'Starting Bot...' : (
+                        <>
+                          <Play className="h-4 w-4 mr-2" />
+                          Start Meeting Bot
+                        </>
+                      )}
+                    </Button>
+                    
+                    {!isRecording ? (
+                      <Button
+                        type="button"
+                        onClick={startRealTimeTranscription}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <Mic className="h-4 w-4 mr-2" />
+                        Start Recording
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        onClick={stopRealTimeTranscription}
+                        className="bg-red-600 hover:bg-red-700"
+                      >
+                        <Square className="h-4 w-4 mr-2" />
+                        Stop Recording
+                      </Button>
                     )}
-                  </Button>
+                  </div>
+
+                  {/* Connection Status */}
+                  {isConnected && (
+                    <div className="flex items-center gap-2 text-green-400">
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                      <span className="text-sm">Connected to transcription service</span>
+                    </div>
+                  )}
                 </form>
+
+                {/* Live Transcript Display */}
+                {(isRecording || liveTranscript) && (
+                  <div className="mt-6">
+                    <h3 className="text-white font-semibold mb-3">Live Transcript</h3>
+                    <div className="bg-white/5 rounded-lg p-4 border border-white/10 min-h-[100px] max-h-[300px] overflow-y-auto">
+                      <p className="text-slate-300 leading-relaxed">
+                        {liveTranscript || (isRecording ? "Listening..." : "No transcript yet")}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
