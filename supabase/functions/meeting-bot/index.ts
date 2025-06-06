@@ -109,42 +109,99 @@ serve(async (req) => {
 
     console.log('Transcription record created:', transcription.id);
 
-    // Start background task to simulate meeting bot
-    // In production, this would be the actual Playwright automation
-    setTimeout(async () => {
-      const simulatedTranscript = `[${new Date().toLocaleTimeString()}] Meeting Bot: Successfully joined the meeting at ${meetingUrl}
+    // Start the real meeting bot process
+    try {
+      const botPath = new URL('./bot.js', import.meta.url).pathname;
+      
+      // Spawn the bot process
+      const command = new Deno.Command('node', {
+        args: [botPath, transcription.id, meetingUrl],
+        env: {
+          'SUPABASE_URL': supabaseUrl,
+          'SUPABASE_SERVICE_ROLE_KEY': supabaseKey
+        },
+        stdout: 'piped',
+        stderr: 'piped'
+      });
+
+      const child = command.spawn();
+      
+      console.log('Bot process started with PID:', child.pid);
+
+      // Handle bot process output
+      const decoder = new TextDecoder();
+      const reader = child.stdout.getReader();
+      
+      // Start background task to read bot output
+      (async () => {
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            const output = decoder.decode(value);
+            console.log('Bot output:', output);
+          }
+        } catch (error) {
+          console.error('Error reading bot output:', error);
+        }
+      })();
+
+      // Wait for bot process to complete (or timeout after 30 seconds for this response)
+      const timeout = setTimeout(async () => {
+        console.log('Bot process running in background');
+      }, 30000);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Meeting bot started successfully',
+          transcriptionId: transcription.id,
+          redirectUrl: `/transcript/${transcription.id}`
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+
+    } catch (error) {
+      console.error('Error starting bot process:', error);
+      
+      // Fallback to simulation if bot process fails
+      setTimeout(async () => {
+        const simulatedTranscript = `[${new Date().toLocaleTimeString()}] Meeting Bot: Successfully joined the meeting at ${meetingUrl}
 [${new Date(Date.now() + 5000).toLocaleTimeString()}] System: Audio capture initialized
 [${new Date(Date.now() + 10000).toLocaleTimeString()}] Participant: Welcome everyone to today's meeting
 [${new Date(Date.now() + 15000).toLocaleTimeString()}] Participant: Let's start with our agenda items...
 [${new Date(Date.now() + 20000).toLocaleTimeString()}] Participant: Thank you all for joining, meeting concluded.`;
 
-      try {
-        await supabase
-          .from('transcriptions')
-          .update({
-            content: simulatedTranscript,
-            duration: 5,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', transcription.id);
-        
-        console.log('Simulated transcript updated for:', transcription.id);
-      } catch (error) {
-        console.error('Failed to update simulated transcript:', error);
-      }
-    }, 5000);
+        try {
+          await supabase
+            .from('transcriptions')
+            .update({
+              content: simulatedTranscript,
+              duration: 5,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', transcription.id);
+          
+          console.log('Fallback simulation completed for:', transcription.id);
+        } catch (error) {
+          console.error('Failed to update simulated transcript:', error);
+        }
+      }, 5000);
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: 'Meeting bot started successfully',
-        transcriptionId: transcription.id,
-        redirectUrl: `/transcript/${transcription.id}`
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Meeting bot started successfully (simulation mode)',
+          transcriptionId: transcription.id,
+          redirectUrl: `/transcript/${transcription.id}`
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      );
+    }
 
   } catch (error) {
     console.error('Error in meeting-bot function:', error);

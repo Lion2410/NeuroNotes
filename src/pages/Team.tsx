@@ -1,80 +1,104 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Users, Mail, UserPlus, Copy, Edit, Trash2, MoreVertical, ExternalLink } from 'lucide-react';
+import { ArrowLeft, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import EditMemberDialog from '@/components/EditMemberDialog';
+import TeamStats from '@/components/team/TeamStats';
+import TeamMembersList from '@/components/team/TeamMembersList';
+import InviteDialog from '@/components/team/InviteDialog';
+import JoinTeamTab from '@/components/team/JoinTeamTab';
 
 interface TeamMember {
-  id: number;
+  id: string;
   name: string;
   email: string;
   role: string;
-  avatar: null;
   status: string;
-  joinDate: string;
+  created_at: string;
+  user_id: string;
+  team_id: string;
 }
 
 const Team = () => {
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([
-    {
-      id: 1,
-      name: 'John Smith',
-      email: 'john@company.com',
-      role: 'Project Manager',
-      avatar: null,
-      status: 'active',
-      joinDate: '2024-01-15'
-    },
-    {
-      id: 2,
-      name: 'Sarah Johnson',
-      email: 'sarah@company.com',
-      role: 'Developer',
-      avatar: null,
-      status: 'active',
-      joinDate: '2024-02-20'
-    },
-    {
-      id: 3,
-      name: 'Mike Chen',
-      email: 'mike@company.com',
-      role: 'Designer',
-      avatar: null,
-      status: 'active',
-      joinDate: '2024-03-10'
-    },
-    {
-      id: 4,
-      name: 'Lisa Wong',
-      email: 'lisa@company.com',
-      role: 'QA Engineer',
-      avatar: null,
-      status: 'inactive',
-      joinDate: '2024-01-30'
-    }
-  ]);
-
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [loading, setLoading] = useState(true);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [joinTeamUrl, setJoinTeamUrl] = useState('');
+  const [currentTeamId, setCurrentTeamId] = useState<string>('');
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
 
   // Generate shareable invite link
   const inviteLink = `${window.location.origin}/join-team?invite=abc123def456`;
+
+  useEffect(() => {
+    if (user) {
+      fetchTeamMembers();
+    }
+  }, [user]);
+
+  const fetchTeamMembers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('team_members')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        setTeamMembers(data);
+        setCurrentTeamId(data[0].team_id);
+      } else {
+        // Create initial team member entry for the current user
+        await createInitialTeamMember();
+      }
+    } catch (error) {
+      console.error('Error fetching team members:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load team members.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createInitialTeamMember = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('team_members')
+        .insert({
+          user_id: user.id,
+          name: `${user.user_metadata.first_name || ''} ${user.user_metadata.last_name || ''}`.trim() || 'Anonymous',
+          email: user.email || '',
+          role: 'Owner',
+          status: 'active'
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      if (data) {
+        setTeamMembers([data]);
+        setCurrentTeamId(data.team_id);
+      }
+    } catch (error) {
+      console.error('Error creating initial team member:', error);
+    }
+  };
 
   const copyInviteLink = () => {
     navigator.clipboard.writeText(inviteLink);
@@ -84,51 +108,73 @@ const Team = () => {
     });
   };
 
-  const saveTeamMembersToDatabase = async (updatedMembers: TeamMember[]) => {
-    try {
-      // In a real app, you would save to the database here
-      // For now, we'll simulate a database save
-      console.log('Saving team members to database:', updatedMembers);
-      
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      toast({
-        title: "Changes Saved",
-        description: "Team member changes have been saved to the database."
-      });
-    } catch (error) {
-      toast({
-        title: "Save Failed",
-        description: "Failed to save changes to database. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
-
   const editMember = (member: TeamMember) => {
     setEditingMember(member);
     setEditDialogOpen(true);
   };
 
   const handleSaveMember = async (updatedMember: TeamMember) => {
-    const updatedMembers = teamMembers.map(member => 
-      member.id === updatedMember.id ? updatedMember : member
-    );
-    setTeamMembers(updatedMembers);
-    await saveTeamMembersToDatabase(updatedMembers);
+    try {
+      const { error } = await supabase
+        .from('team_members')
+        .update({
+          name: updatedMember.name,
+          email: updatedMember.email,
+          role: updatedMember.role,
+          status: updatedMember.status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', updatedMember.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setTeamMembers(prev => 
+        prev.map(member => 
+          member.id === updatedMember.id ? { ...member, ...updatedMember } : member
+        )
+      );
+
+      toast({
+        title: "Success",
+        description: "Team member updated successfully."
+      });
+    } catch (error) {
+      console.error('Error updating team member:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update team member.",
+        variant: "destructive"
+      });
+    }
+    
     setEditDialogOpen(false);
     setEditingMember(null);
   };
 
-  const deleteMember = async (memberId: number) => {
-    const updatedMembers = teamMembers.filter(member => member.id !== memberId);
-    setTeamMembers(updatedMembers);
-    await saveTeamMembersToDatabase(updatedMembers);
-    toast({
-      title: "Member Removed",
-      description: "Team member has been removed successfully."
-    });
+  const deleteMember = async (memberId: string) => {
+    try {
+      const { error } = await supabase
+        .from('team_members')
+        .delete()
+        .eq('id', memberId);
+
+      if (error) throw error;
+
+      setTeamMembers(prev => prev.filter(member => member.id !== memberId));
+      
+      toast({
+        title: "Member Removed",
+        description: "Team member has been removed successfully."
+      });
+    } catch (error) {
+      console.error('Error deleting team member:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove team member.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleJoinTeam = async () => {
@@ -142,7 +188,6 @@ const Team = () => {
     }
 
     try {
-      // Extract invite code from URL
       const url = new URL(joinTeamUrl);
       const inviteCode = url.searchParams.get('invite');
       
@@ -150,13 +195,11 @@ const Team = () => {
         throw new Error('Invalid invite link');
       }
 
-      // Simulate joining team
       toast({
         title: "Joining Team...",
         description: "Processing your request to join the team."
       });
 
-      // Navigate to the join team page
       navigate(`/join-team?invite=${inviteCode}`);
     } catch (error) {
       toast({
@@ -167,13 +210,13 @@ const Team = () => {
     }
   };
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('');
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black flex items-center justify-center">
+        <div className="text-white">Loading team data...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
@@ -191,46 +234,13 @@ const Team = () => {
             <span className="text-slate-400">/</span>
             <span className="text-white font-medium">Team Management</span>
           </div>
-          <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-purple-600 hover:bg-purple-700 text-white">
-                <UserPlus className="h-4 w-4 mr-2" />
-                Invite Member
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-slate-800 border-slate-700">
-              <DialogHeader>
-                <DialogTitle className="text-white">Invite Team Member</DialogTitle>
-                <DialogDescription className="text-slate-300">
-                  Share this link with anyone you want to invite to your team.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="invite-link" className="text-white">Shareable Invite Link</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="invite-link"
-                      value={inviteLink}
-                      readOnly
-                      className="bg-slate-700 border-slate-600 text-white"
-                    />
-                    <Button onClick={copyInviteLink} className="bg-purple-600 hover:bg-purple-700">
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <p className="text-sm text-slate-400 mt-2">
-                    Anyone with this link can join your team after registering or signing in.
-                  </p>
-                </div>
-                <div className="flex justify-end">
-                  <Button onClick={() => setInviteDialogOpen(false)}>
-                    Done
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button 
+            onClick={() => setInviteDialogOpen(true)}
+            className="bg-purple-600 hover:bg-purple-700 text-white"
+          >
+            <UserPlus className="h-4 w-4 mr-2" />
+            Invite Member
+          </Button>
         </div>
       </header>
 
@@ -251,162 +261,30 @@ const Team = () => {
           </TabsList>
 
           <TabsContent value="members" className="space-y-8">
-            {/* Team Stats */}
-            <div className="grid md:grid-cols-3 gap-6">
-              <Card className="bg-white/10 backdrop-blur-md border-white/20">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <Users className="h-5 w-5 text-blue-400" />
-                    Total Members
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-white">{teamMembers.length}</div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-white/10 backdrop-blur-md border-white/20">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <Users className="h-5 w-5 text-green-400" />
-                    Active Members
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-white">
-                    {teamMembers.filter(m => m.status === 'active').length}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-white/10 backdrop-blur-md border-white/20">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <Users className="h-5 w-5 text-purple-400" />
-                    Roles
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-white">
-                    {new Set(teamMembers.map(m => m.role)).size}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Team Members List */}
-            <Card className="bg-white/10 backdrop-blur-md border-white/20">
-              <CardHeader>
-                <CardTitle className="text-white">Team Members</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {teamMembers.map((member) => (
-                    <div
-                      key={member.id}
-                      className="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
-                          <span className="text-white font-medium">
-                            {getInitials(member.name)}
-                          </span>
-                        </div>
-                        <div>
-                          <h3 className="text-white font-semibold">{member.name}</h3>
-                          <div className="flex items-center gap-2 text-sm text-slate-300">
-                            <Mail className="h-4 w-4" />
-                            {member.email}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <Badge
-                            variant={member.status === 'active' ? 'default' : 'secondary'}
-                            className={member.status === 'active' ? 'bg-green-600' : 'bg-slate-600'}
-                          >
-                            {member.status}
-                          </Badge>
-                          <div className="text-sm text-slate-300 mt-1">{member.role}</div>
-                        </div>
-                        
-                        <div className="text-right text-sm text-slate-400">
-                          <div>Joined</div>
-                          <div>{formatDate(member.joinDate)}</div>
-                        </div>
-                        
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="border-white/30 hover:bg-white/10 text-black"
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent className="bg-slate-800 border-slate-700">
-                            <DropdownMenuItem 
-                              onClick={() => editMember(member)}
-                              className="text-white hover:bg-slate-700"
-                            >
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => deleteMember(member.id)}
-                              className="text-red-400 hover:bg-slate-700"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Remove
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <TeamStats teamMembers={teamMembers} />
+            <TeamMembersList 
+              teamMembers={teamMembers}
+              onEditMember={editMember}
+              onDeleteMember={deleteMember}
+            />
           </TabsContent>
 
           <TabsContent value="join" className="space-y-8">
-            <Card className="bg-white/10 backdrop-blur-md border-white/20">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <ExternalLink className="h-5 w-5 text-purple-400" />
-                  Join a Team
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="join-team-url" className="text-white">Team Invite Link</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="join-team-url"
-                      placeholder="Paste the team invite link here..."
-                      value={joinTeamUrl}
-                      onChange={(e) => setJoinTeamUrl(e.target.value)}
-                      className="bg-white/10 border-white/20 text-white placeholder:text-slate-400"
-                    />
-                    <Button 
-                      onClick={handleJoinTeam}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      Join Team
-                    </Button>
-                  </div>
-                  <p className="text-sm text-slate-400 mt-2">
-                    Enter the invite link shared by a team member to join their team.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <JoinTeamTab
+              joinTeamUrl={joinTeamUrl}
+              onJoinTeamUrlChange={setJoinTeamUrl}
+              onJoinTeam={handleJoinTeam}
+            />
           </TabsContent>
         </Tabs>
       </div>
+
+      <InviteDialog
+        isOpen={inviteDialogOpen}
+        onClose={() => setInviteDialogOpen(false)}
+        inviteLink={inviteLink}
+        onCopyLink={copyInviteLink}
+      />
 
       <EditMemberDialog
         member={editingMember}
