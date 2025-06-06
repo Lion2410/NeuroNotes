@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Save, Download, Share, Users, Edit3, FileText, Clock, Sparkles } from 'lucide-react';
@@ -10,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import EditableTitle from '@/components/EditableTitle';
 
 interface TranscriptionData {
   id: string;
@@ -81,6 +81,38 @@ const TranscriptEditor = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveTitle = async (newTitle: string) => {
+    try {
+      await handleWithRetry(async () => {
+        const { error } = await supabase
+          .from('transcriptions')
+          .update({
+            title: newTitle,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', id)
+          .eq('user_id', user?.id);
+
+        if (error) {
+          throw error;
+        }
+      }, 'Title save');
+
+      setTranscriptionData(prev => prev ? { ...prev, title: newTitle } : null);
+      toast({
+        title: "Title Updated",
+        description: "Transcript title has been updated successfully."
+      });
+    } catch (error: any) {
+      console.error('Title save error:', error);
+      toast({
+        title: "Save Failed",
+        description: error.message || "Failed to update title. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -256,7 +288,7 @@ Status: Meeting completed successfully`;
               <ArrowLeft className="h-6 w-6" />
             </Link>
             <div className="flex items-center space-x-2">
-              <img src="/lovable-uploads/e8e442bd-846b-4e60-b16a-3043d419243f.png" alt="NeuroNotes" className="h-8 w-auto" />
+              <img src="/lovable-uploads/2d11ec38-9fc4-4af5-9224-4b5b20a91803.png" alt="NeuroNotes" className="h-8 w-auto" />
               <span className="text-2xl font-bold text-white">NeuroNotes</span>
             </div>
             <span className="text-slate-400">/</span>
@@ -284,12 +316,16 @@ Status: Meeting completed successfully`;
         <div className="grid lg:grid-cols-4 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-3 space-y-6">
-            {/* Meeting Info */}
+            {/* Meeting Info with Editable Title */}
             <Card className="bg-white/10 backdrop-blur-md border-white/20">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-white text-2xl">{transcriptionData.title}</CardTitle>
+                  <div className="flex-1">
+                    <EditableTitle
+                      title={transcriptionData.title}
+                      onSave={handleSaveTitle}
+                      className="mb-2"
+                    />
                     <div className="flex items-center gap-4 mt-2 text-slate-300">
                       <span className="flex items-center gap-1">
                         <Clock className="h-4 w-4" />

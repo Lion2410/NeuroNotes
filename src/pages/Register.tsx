@@ -93,7 +93,7 @@ const Register = () => {
         {/* Logo */}
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center space-x-2">
-            <img src="/lovable-uploads/e8e442bd-846b-4e60-b16a-3043d419243f.png" alt="NeuroNotes" className="h-10 w-auto" />
+            <img src="/lovable-uploads/2d11ec38-9fc4-4af5-9224-4b5b20a91803.png" alt="NeuroNotes" className="h-10 w-auto" />
             <span className="text-3xl font-bold text-white">NeuroNotes</span>
           </Link>
         </div>

@@ -61,7 +61,7 @@ const JoinTeam = () => {
               </Button>
             </Link>
             <Link to={`/register?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`}>
-              <Button variant="outline" className="w-full border-white/30 text-white hover:bg-white/10">
+              <Button variant="outline" className="w-full border-white/30 text-black hover:bg-white/10">
                 Create Account
               </Button>
             </Link>

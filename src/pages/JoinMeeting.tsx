@@ -1,12 +1,12 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Upload, Play, Save, Mic, MicOff, Square } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Upload, Play, Save, Mic, MicOff, Square, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,10 +20,13 @@ const JoinMeeting = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState('');
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
+  const [meetingBotStatus, setMeetingBotStatus] = useState<'idle' | 'starting' | 'success' | 'error'>('idle');
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const { user } = useAuth();
   const { toast } = useToast();
@@ -37,6 +40,9 @@ const JoinMeeting = () => {
       }
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
       }
     };
   }, []);
@@ -53,6 +59,8 @@ const JoinMeeting = () => {
     }
     
     setLoading(true);
+    setMeetingBotStatus('starting');
+    
     try {
       // Call the meeting bot function
       const { data, error } = await supabase.functions.invoke('meeting-bot', {
@@ -63,18 +71,17 @@ const JoinMeeting = () => {
         throw error;
       }
 
+      setMeetingBotStatus('success');
       toast({
         title: "Meeting Bot Started",
         description: "The bot is joining the meeting and will start transcribing."
       });
 
-      // Start real-time transcription
-      startRealTimeTranscription();
-
     } catch (error: any) {
+      setMeetingBotStatus('error');
       toast({
-        title: "Error",
-        description: error.message || "Failed to start meeting bot. Please try again.",
+        title: "Meeting Bot Failed",
+        description: error.message || "Failed to start meeting bot. Please check the meeting URL and try again.",
         variant: "destructive"
       });
     } finally {
@@ -84,6 +91,8 @@ const JoinMeeting = () => {
 
   const startRealTimeTranscription = async () => {
     try {
+      setConnectionStatus('connecting');
+      
       // Request microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
@@ -92,11 +101,13 @@ const JoinMeeting = () => {
         mimeType: 'audio/webm;codecs=opus'
       });
 
-      // Setup WebSocket connection for real-time transcription - using correct URL
-      wsRef.current = new WebSocket('wss://qlfqnclqowlljjcbeunz.functions.supabase.co/functions/v1/transcribe-audio-realtime');
+      // Setup WebSocket connection for real-time transcription
+      const wsUrl = `wss://qlfqnclqowlljjcbeunz.functions.supabase.co/transcribe-audio-realtime`;
+      wsRef.current = new WebSocket(wsUrl);
       
       wsRef.current.onopen = () => {
         setIsConnected(true);
+        setConnectionStatus('connected');
         toast({
           title: "Connected",
           description: "Real-time transcription started."
@@ -104,34 +115,71 @@ const JoinMeeting = () => {
       };
 
       wsRef.current.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.transcript) {
-          setLiveTranscript(prev => prev + ' ' + data.transcript);
+        try {
+          const data = JSON.parse(event.data);
+          console.log('WebSocket message received:', data);
+          
+          if (data.type === 'transcript' && data.transcript) {
+            setLiveTranscript(prev => prev + ' ' + data.transcript);
+          } else if (data.type === 'connection' && data.status === 'connected') {
+            console.log('WebSocket connection confirmed');
+          } else if (data.error) {
+            console.error('WebSocket error from server:', data.error);
+            toast({
+              title: "Transcription Error",
+              description: data.error,
+              variant: "destructive"
+            });
+          }
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
         }
       };
 
       wsRef.current.onerror = (error) => {
         console.error('WebSocket error:', error);
+        setConnectionStatus('error');
+        setIsConnected(false);
         toast({
           title: "Connection Error",
-          description: "Failed to connect to transcription service.",
+          description: "Failed to connect to transcription service. Please try again.",
           variant: "destructive"
         });
+      };
+
+      wsRef.current.onclose = (event) => {
+        console.log('WebSocket closed:', event.code, event.reason);
+        setIsConnected(false);
+        setConnectionStatus('idle');
+        
+        // Auto-reconnect if it wasn't a manual close
+        if (event.code !== 1000 && isRecording) {
+          console.log('Attempting to reconnect...');
+          reconnectTimeoutRef.current = setTimeout(() => {
+            startRealTimeTranscription();
+          }, 3000);
+        }
       };
 
       // Setup MediaRecorder events
       mediaRecorderRef.current.ondataavailable = async (event) => {
         if (event.data.size > 0 && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          // Convert audio blob to base64 and send via WebSocket
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const base64 = (reader.result as string).split(',')[1];
-            wsRef.current?.send(JSON.stringify({
-              type: 'audio',
-              data: base64
-            }));
-          };
-          reader.readAsDataURL(event.data);
+          try {
+            // Convert audio blob to base64 and send via WebSocket
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64 = (reader.result as string).split(',')[1];
+              if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({
+                  type: 'audio',
+                  data: base64
+                }));
+              }
+            };
+            reader.readAsDataURL(event.data);
+          } catch (error) {
+            console.error('Error processing audio data:', error);
+          }
         }
       };
 
@@ -139,10 +187,12 @@ const JoinMeeting = () => {
       mediaRecorderRef.current.start(1000); // Send data every second
       setIsRecording(true);
 
-    } catch (error) {
+    } catch (error: any) {
+      setConnectionStatus('error');
+      console.error('Microphone or WebSocket error:', error);
       toast({
-        title: "Microphone Error",
-        description: "Failed to access microphone. Please check permissions.",
+        title: "Setup Error",
+        description: error.message || "Failed to access microphone or connect to transcription service. Please check permissions.",
         variant: "destructive"
       });
     }
@@ -153,10 +203,14 @@ const JoinMeeting = () => {
       mediaRecorderRef.current.stop();
     }
     if (wsRef.current) {
-      wsRef.current.close();
+      wsRef.current.close(1000, 'User stopped recording');
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
     }
     setIsRecording(false);
     setIsConnected(false);
+    setConnectionStatus('idle');
     
     // Add the live transcript to results
     if (liveTranscript.trim()) {
@@ -264,6 +318,7 @@ const JoinMeeting = () => {
       setTranscriptionResults([]);
       setSelectedFile(null);
       setMeetingUrl('');
+      setMeetingBotStatus('idle');
     } catch (error: any) {
       toast({
         title: "Save Failed",
@@ -272,6 +327,21 @@ const JoinMeeting = () => {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'success':
+      case 'connected':
+        return <CheckCircle className="h-4 w-4 text-green-400" />;
+      case 'error':
+        return <XCircle className="h-4 w-4 text-red-400" />;
+      case 'starting':
+      case 'connecting':
+        return <AlertCircle className="h-4 w-4 text-yellow-400 animate-pulse" />;
+      default:
+        return null;
     }
   };
 
@@ -323,6 +393,25 @@ const JoinMeeting = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                {/* Status Alerts */}
+                {meetingBotStatus === 'success' && (
+                  <Alert className="mb-4 border-green-600 bg-green-600/10">
+                    <CheckCircle className="h-4 w-4 text-green-400" />
+                    <AlertDescription className="text-green-400">
+                      Meeting bot successfully started and joined the meeting.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                {meetingBotStatus === 'error' && (
+                  <Alert className="mb-4 border-red-600 bg-red-600/10">
+                    <XCircle className="h-4 w-4 text-red-400" />
+                    <AlertDescription className="text-red-400">
+                      Failed to start meeting bot. Please check your meeting URL and try again.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <form onSubmit={handleJoinMeeting} className="space-y-6">
                   <div className="space-y-2">
                     <Label htmlFor="meeting-url" className="text-white">Meeting URL</Label>
@@ -346,7 +435,12 @@ const JoinMeeting = () => {
                       disabled={loading}
                       className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
                     >
-                      {loading ? 'Starting Bot...' : (
+                      {loading ? (
+                        <div className="flex items-center gap-2">
+                          {getStatusIcon(meetingBotStatus)}
+                          Starting Bot...
+                        </div>
+                      ) : (
                         <>
                           <Play className="h-4 w-4 mr-2" />
                           Start Meeting Bot
@@ -376,10 +470,18 @@ const JoinMeeting = () => {
                   </div>
 
                   {/* Connection Status */}
-                  {isConnected && (
-                    <div className="flex items-center gap-2 text-green-400">
-                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                      <span className="text-sm">Connected to transcription service</span>
+                  {connectionStatus !== 'idle' && (
+                    <div className="flex items-center gap-2">
+                      {getStatusIcon(connectionStatus)}
+                      <span className={`text-sm ${
+                        connectionStatus === 'connected' ? 'text-green-400' :
+                        connectionStatus === 'error' ? 'text-red-400' :
+                        'text-yellow-400'
+                      }`}>
+                        {connectionStatus === 'connecting' && 'Connecting to transcription service...'}
+                        {connectionStatus === 'connected' && 'Connected to transcription service'}
+                        {connectionStatus === 'error' && 'Failed to connect to transcription service'}
+                      </span>
                     </div>
                   )}
                 </form>
