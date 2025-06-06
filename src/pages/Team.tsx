@@ -1,13 +1,13 @@
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Users, Mail, UserPlus, X } from 'lucide-react';
+import { ArrowLeft, Users, Mail, UserPlus, Copy, Edit, Trash2, MoreVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 
 const Team = () => {
@@ -51,12 +51,33 @@ const Team = () => {
   ]);
 
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
-  const [inviteForm, setInviteForm] = useState({
-    name: '',
-    email: '',
-    role: ''
-  });
   const { toast } = useToast();
+
+  // Generate shareable invite link
+  const inviteLink = `${window.location.origin}/join-team?invite=abc123def456`;
+
+  const copyInviteLink = () => {
+    navigator.clipboard.writeText(inviteLink);
+    toast({
+      title: "Link Copied",
+      description: "Invite link has been copied to clipboard."
+    });
+  };
+
+  const editMember = (memberId: number) => {
+    toast({
+      title: "Edit Member",
+      description: "Edit functionality would be implemented here."
+    });
+  };
+
+  const deleteMember = (memberId: number) => {
+    setTeamMembers(prev => prev.filter(member => member.id !== memberId));
+    toast({
+      title: "Member Removed",
+      description: "Team member has been removed successfully."
+    });
+  };
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('');
@@ -64,41 +85,6 @@ const Team = () => {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
-  };
-
-  const handleInviteMember = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!inviteForm.name || !inviteForm.email || !inviteForm.role) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in all fields.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Add new member to the list
-    const newMember = {
-      id: teamMembers.length + 1,
-      name: inviteForm.name,
-      email: inviteForm.email,
-      role: inviteForm.role,
-      avatar: null,
-      status: 'active' as const,
-      joinDate: new Date().toISOString().split('T')[0]
-    };
-
-    setTeamMembers([...teamMembers, newMember]);
-    
-    // Reset form and close dialog
-    setInviteForm({ name: '', email: '', role: '' });
-    setInviteDialogOpen(false);
-    
-    toast({
-      title: "Member Invited",
-      description: `${inviteForm.name} has been added to your team.`
-    });
   };
 
   return (
@@ -111,7 +97,7 @@ const Team = () => {
               <ArrowLeft className="h-6 w-6" />
             </Link>
             <div className="flex items-center space-x-2">
-              <img src="/lovable-uploads/a8794a28-d1ea-4182-a872-01c163c23ee5.png" alt="NeuroNotes" className="h-12 w-auto" />
+              <img src="/lovable-uploads/2d11ec38-9fc4-4af5-9224-4b5b20a91803.png" alt="NeuroNotes" className="h-12 w-auto" />
               <span className="text-2xl font-bold text-white">NeuroNotes</span>
             </div>
             <span className="text-slate-400">/</span>
@@ -128,50 +114,33 @@ const Team = () => {
               <DialogHeader>
                 <DialogTitle className="text-white">Invite Team Member</DialogTitle>
                 <DialogDescription className="text-slate-300">
-                  Add a new member to your team by filling out their information below.
+                  Share this link with anyone you want to invite to your team.
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleInviteMember} className="space-y-4">
+              <div className="space-y-4">
                 <div>
-                  <Label htmlFor="name" className="text-white">Full Name</Label>
-                  <Input
-                    id="name"
-                    value={inviteForm.name}
-                    onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
-                    placeholder="Enter full name"
-                    className="bg-slate-700 border-slate-600 text-white"
-                  />
+                  <Label htmlFor="invite-link" className="text-white">Shareable Invite Link</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="invite-link"
+                      value={inviteLink}
+                      readOnly
+                      className="bg-slate-700 border-slate-600 text-white"
+                    />
+                    <Button onClick={copyInviteLink} className="bg-purple-600 hover:bg-purple-700">
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-sm text-slate-400 mt-2">
+                    Anyone with this link can join your team after registering or signing in.
+                  </p>
                 </div>
-                <div>
-                  <Label htmlFor="email" className="text-white">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={inviteForm.email}
-                    onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                    placeholder="Enter email address"
-                    className="bg-slate-700 border-slate-600 text-white"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="role" className="text-white">Role</Label>
-                  <Input
-                    id="role"
-                    value={inviteForm.role}
-                    onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
-                    placeholder="Enter role (e.g., Developer, Designer)"
-                    className="bg-slate-700 border-slate-600 text-white"
-                  />
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <Button type="button" variant="outline" onClick={() => setInviteDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" className="bg-purple-600 hover:bg-purple-700">
-                    Send Invite
+                <div className="flex justify-end">
+                  <Button onClick={() => setInviteDialogOpen(false)}>
+                    Done
                   </Button>
                 </div>
-              </form>
+              </div>
             </DialogContent>
           </Dialog>
         </div>
@@ -269,13 +238,33 @@ const Team = () => {
                       <div>{formatDate(member.joinDate)}</div>
                     </div>
                     
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-white/30 hover:bg-white/10 text-slate-950"
-                    >
-                      Manage
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-white/30 hover:bg-white/10 text-white"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent className="bg-slate-800 border-slate-700">
+                        <DropdownMenuItem 
+                          onClick={() => editMember(member.id)}
+                          className="text-white hover:bg-slate-700"
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => deleteMember(member.id)}
+                          className="text-red-400 hover:bg-slate-700"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Remove
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               ))}

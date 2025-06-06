@@ -15,6 +15,7 @@ import TranscriptEditor from "./pages/TranscriptEditor";
 import Profile from "./pages/Profile";
 import Notes from "./pages/Notes";
 import Team from "./pages/Team";
+import JoinTeam from "./pages/JoinTeam";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/join-team" element={<JoinTeam />} />
             <Route 
               path="/dashboard" 
               element={

@@ -110,7 +110,7 @@ const Dashboard = () => {
       <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <img src="/lovable-uploads/a8794a28-d1ea-4182-a872-01c163c23ee5.png" alt="NeuroNotes" className="h-12 w-auto" />
+            <img src="/lovable-uploads/2d11ec38-9fc4-4af5-9224-4b5b20a91803.png" alt="NeuroNotes" className="h-12 w-auto" />
             <span className="text-2xl font-bold text-white">NeuroNotes</span>
           </div>
           <div className="flex items-center space-x-4">
@@ -142,7 +142,7 @@ const Dashboard = () => {
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-white flex items-center gap-2">
-                  <img src="/lovable-uploads/a8794a28-d1ea-4182-a872-01c163c23ee5.png" alt="NeuroNotes" className="h-6 w-6" />
+                  <img src="/lovable-uploads/2d11ec38-9fc4-4af5-9224-4b5b20a91803.png" alt="NeuroNotes" className="h-6 w-6" />
                   Session Status
                 </CardTitle>
                 <Badge variant={activeSession ? "default" : "secondary"} className={activeSession ? "bg-green-600" : "bg-slate-600"}>

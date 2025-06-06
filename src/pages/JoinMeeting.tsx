@@ -92,7 +92,7 @@ const JoinMeeting = () => {
         mimeType: 'audio/webm;codecs=opus'
       });
 
-      // Setup WebSocket connection for real-time transcription
+      // Setup WebSocket connection for real-time transcription - using correct URL
       wsRef.current = new WebSocket('wss://qlfqnclqowlljjcbeunz.functions.supabase.co/functions/v1/transcribe-audio-realtime');
       
       wsRef.current.onopen = () => {
@@ -285,7 +285,7 @@ const JoinMeeting = () => {
               <ArrowLeft className="h-6 w-6" />
             </Link>
             <div className="flex items-center space-x-2">
-              <img src="/lovable-uploads/a8794a28-d1ea-4182-a872-01c163c23ee5.png" alt="NeuroNotes" className="h-12 w-auto" />
+              <img src="/lovable-uploads/2d11ec38-9fc4-4af5-9224-4b5b20a91803.png" alt="NeuroNotes" className="h-12 w-auto" />
               <span className="text-2xl font-bold text-white">NeuroNotes</span>
             </div>
           </div>

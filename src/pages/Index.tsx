@@ -11,7 +11,7 @@ const Index = () => {
       <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <img src="/lovable-uploads/e8e442bd-846b-4e60-b16a-3043d419243f.png" alt="NeuroNotes" className="h-8 w-auto" />
+            <img src="/lovable-uploads/2d11ec38-9fc4-4af5-9224-4b5b20a91803.png" alt="NeuroNotes" className="h-8 w-auto" />
             <span className="text-2xl font-bold text-white">NeuroNotes</span>
           </div>
           <div className="flex items-center space-x-4">
@@ -54,7 +54,7 @@ const Index = () => {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
             <Card className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-300 hover:scale-105">
               <CardHeader>
-                <img src="/lovable-uploads/e8e442bd-846b-4e60-b16a-3043d419243f.png" alt="NeuroNotes" className="h-12 w-12 mb-4" />
+                <img src="/lovable-uploads/2d11ec38-9fc4-4af5-9224-4b5b20a91803.png" alt="NeuroNotes" className="h-12 w-12 mb-4" />
                 <CardTitle className="text-white">Smart Meeting Assistant</CardTitle>
                 <CardDescription className="text-slate-300">
                   Automatically join Google Meet, Zoom, and other online meetings for seamless transcription
