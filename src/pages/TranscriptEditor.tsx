@@ -230,38 +230,6 @@ Status: Meeting completed successfully`;
     }
   };
 
-  const handleExport = () => {
-    const element = document.createElement('a');
-    const file = new Blob([transcript], { type: 'text/plain' });
-    element.href = URL.createObjectURL(file);
-    element.download = `${transcriptionData?.title?.replace(/\s+/g, '_') || 'transcript'}.txt`;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-    
-    toast({
-      title: "Export Complete",
-      description: "Transcript has been downloaded successfully."
-    });
-  };
-
-  const handleShare = async () => {
-    const shareUrl = `${window.location.origin}/transcript/${id}`;
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      toast({
-        title: "Link Copied",
-        description: "Shareable link has been copied to your clipboard."
-      });
-    } catch (error) {
-      toast({
-        title: "Share Failed",
-        description: "Failed to copy share link. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black flex items-center justify-center">
