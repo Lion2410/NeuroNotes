@@ -32,6 +32,7 @@ const Team = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [joinTeamUrl, setJoinTeamUrl] = useState('');
   const [currentTeamId, setCurrentTeamId] = useState<string>('');
+  const [activeTab, setActiveTab] = useState('members');
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -47,12 +48,19 @@ const Team = () => {
 
   const fetchTeamMembers = async () => {
     try {
+      console.log('Fetching team members for user:', user?.id);
+      
       const { data, error } = await supabase
         .from('team_members')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+      
+      console.log('Fetched team members:', data);
       
       if (data && data.length > 0) {
         setTeamMembers(data);
@@ -61,11 +69,11 @@ const Team = () => {
         // Create initial team member entry for the current user
         await createInitialTeamMember();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching team members:', error);
       toast({
         title: "Error",
-        description: "Failed to load team members.",
+        description: error.message || "Failed to load team members.",
         variant: "destructive"
       });
     } finally {
@@ -77,6 +85,8 @@ const Team = () => {
     if (!user) return;
     
     try {
+      console.log('Creating initial team member for user:', user.id);
+      
       const { data, error } = await supabase
         .from('team_members')
         .insert({
@@ -89,14 +99,24 @@ const Team = () => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating initial team member:', error);
+        throw error;
+      }
+      
+      console.log('Created initial team member:', data);
       
       if (data) {
         setTeamMembers([data]);
         setCurrentTeamId(data.team_id);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating initial team member:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create team member.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -139,11 +159,11 @@ const Team = () => {
         title: "Success",
         description: "Team member updated successfully."
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating team member:', error);
       toast({
         title: "Error",
-        description: "Failed to update team member.",
+        description: error.message || "Failed to update team member.",
         variant: "destructive"
       });
     }
@@ -167,11 +187,11 @@ const Team = () => {
         title: "Member Removed",
         description: "Team member has been removed successfully."
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting team member:', error);
       toast({
         title: "Error",
-        description: "Failed to remove team member.",
+        description: error.message || "Failed to remove team member.",
         variant: "destructive"
       });
     }
@@ -208,6 +228,10 @@ const Team = () => {
         variant: "destructive"
       });
     }
+  };
+
+  const handleAddMember = () => {
+    setInviteDialogOpen(true);
   };
 
   if (loading) {
@@ -250,7 +274,7 @@ const Team = () => {
           <p className="text-xl text-slate-300">Manage your team and collaborators</p>
         </div>
 
-        <Tabs defaultValue="members" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 bg-white/10 border-white/20 mb-8">
             <TabsTrigger value="members" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
               Team Members
@@ -262,7 +286,7 @@ const Team = () => {
 
           <TabsContent value="members" className="space-y-8">
             <TeamStats teamMembers={teamMembers} />
-            <TeamMembersList teamId={currentTeamId} />
+            <TeamMembersList teamId={currentTeamId} onAddMember={handleAddMember} />
           </TabsContent>
 
           <TabsContent value="join" className="space-y-8">

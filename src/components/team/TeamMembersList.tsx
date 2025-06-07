@@ -23,9 +23,10 @@ interface TeamMember {
 
 interface TeamMembersListProps {
   teamId: string;
+  onAddMember: () => void;
 }
 
-const TeamMembersList: React.FC<TeamMembersListProps> = ({ teamId }) => {
+const TeamMembersList: React.FC<TeamMembersListProps> = ({ teamId, onAddMember }) => {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
@@ -38,15 +39,29 @@ const TeamMembersList: React.FC<TeamMembersListProps> = ({ teamId }) => {
 
   const fetchMembers = async () => {
     try {
-      const { data, error } = await supabase
+      console.log('Fetching team members for team:', teamId);
+      
+      let query = supabase
         .from('team_members')
         .select('*')
-        .eq('team_id', teamId)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      // If we have a specific team ID, filter by it
+      if (teamId && teamId !== '') {
+        query = query.eq('team_id', teamId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+      
+      console.log('Fetched members:', data);
       setMembers(data || []);
     } catch (error: any) {
+      console.error('Error fetching team members:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to fetch team members.",
@@ -128,6 +143,8 @@ const TeamMembersList: React.FC<TeamMembersListProps> = ({ teamId }) => {
 
   const getRoleColor = (role: string) => {
     switch (role.toLowerCase()) {
+      case 'owner':
+        return 'bg-purple-600';
       case 'admin':
         return 'bg-red-600';
       case 'moderator':
@@ -154,10 +171,11 @@ const TeamMembersList: React.FC<TeamMembersListProps> = ({ teamId }) => {
       <Card className="bg-white/10 backdrop-blur-md border-white/20">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-white">Team Members</CardTitle>
+            <CardTitle className="text-white">Team Members ({members.length})</CardTitle>
             <Button 
               size="sm" 
               className="bg-purple-600 hover:bg-purple-700"
+              onClick={onAddMember}
             >
               <UserPlus className="h-4 w-4 mr-2" />
               Add Member
