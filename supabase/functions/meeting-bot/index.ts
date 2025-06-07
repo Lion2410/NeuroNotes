@@ -87,7 +87,7 @@ serve(async (req) => {
       .insert({
         user_id: user.id,
         title: meetingTitle,
-        content: 'Meeting bot is joining the meeting. Transcription will begin shortly...',
+        content: 'Meeting bot is ready. Please start screen sharing with audio to begin transcription...',
         source_type: 'live_meeting',
         meeting_url: meetingUrl,
         audio_url: null,
@@ -109,99 +109,24 @@ serve(async (req) => {
 
     console.log('Transcription record created:', transcription.id);
 
-    // Start the real meeting bot process
-    try {
-      const botPath = new URL('./bot.js', import.meta.url).pathname;
-      
-      console.log('Starting bot process with path:', botPath);
-      
-      // Spawn the bot process
-      const command = new Deno.Command('node', {
-        args: [botPath, transcription.id, meetingUrl],
-        env: {
-          'SUPABASE_URL': supabaseUrl,
-          'SUPABASE_SERVICE_ROLE_KEY': supabaseKey,
-          'NODE_PATH': '/usr/local/lib/node_modules'
-        },
-        stdout: 'piped',
-        stderr: 'piped'
-      });
-
-      const child = command.spawn();
-      
-      console.log('Bot process started');
-
-      // Handle bot process output in background
-      const decoder = new TextDecoder();
-      
-      // Read stdout
-      (async () => {
-        try {
-          const reader = child.stdout.getReader();
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            const output = decoder.decode(value);
-            console.log('Bot stdout:', output);
-          }
-        } catch (error) {
-          console.error('Error reading bot stdout:', error);
+    // Return success with instructions for browser-based audio capture
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: 'Meeting bot initialized successfully. Browser-based audio capture ready.',
+        transcriptionId: transcription.id,
+        redirectUrl: `/transcript/${transcription.id}`,
+        instructions: {
+          step1: 'Navigate to the meeting URL in your browser',
+          step2: 'Join the meeting',
+          step3: 'Use the browser-based audio capture feature',
+          step4: 'Audio will be transcribed in real-time'
         }
-      })();
-
-      // Read stderr
-      (async () => {
-        try {
-          const reader = child.stderr.getReader();
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            const output = decoder.decode(value);
-            console.log('Bot stderr:', output);
-          }
-        } catch (error) {
-          console.error('Error reading bot stderr:', error);
-        }
-      })();
-
-      // Don't wait for the bot process to complete - return immediately
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'Meeting bot started successfully',
-          transcriptionId: transcription.id,
-          redirectUrl: `/transcript/${transcription.id}`
-        }),
-        {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-
-    } catch (error) {
-      console.error('Error starting bot process:', error);
-      
-      // Update transcription with error status
-      await supabase
-        .from('transcriptions')
-        .update({
-          content: `Error starting meeting bot: ${error.message}. Please try again or use the manual recording feature.`,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', transcription.id);
-
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Failed to start meeting bot',
-          transcriptionId: transcription.id,
-          redirectUrl: `/transcript/${transcription.id}`
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
 
   } catch (error) {
     console.error('Error in meeting-bot function:', error);
