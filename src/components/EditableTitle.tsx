@@ -6,11 +6,11 @@ import { Input } from '@/components/ui/input';
 
 interface EditableTitleProps {
   title: string;
-  onSave: (newTitle: string) => void;
+  onUpdate: (newTitle: string) => void;
   className?: string;
 }
 
-const EditableTitle: React.FC<EditableTitleProps> = ({ title, onSave, className = "" }) => {
+const EditableTitle: React.FC<EditableTitleProps> = ({ title, onUpdate, className = "" }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(title);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -24,7 +24,7 @@ const EditableTitle: React.FC<EditableTitleProps> = ({ title, onSave, className 
 
   const handleSave = () => {
     if (editValue.trim() && editValue !== title) {
-      onSave(editValue.trim());
+      onUpdate(editValue.trim());
     }
     setIsEditing(false);
   };

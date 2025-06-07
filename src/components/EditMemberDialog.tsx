@@ -7,20 +7,21 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface TeamMember {
-  id: number;
+  id: string;
   name: string;
   email: string;
   role: string;
-  avatar: null;
   status: string;
-  joinDate: string;
+  created_at: string;
+  user_id: string;
+  team_id: string;
 }
 
 interface EditMemberDialogProps {
   member: TeamMember | null;
   isOpen: boolean;
   onClose: () => void;
-  onSave: (member: TeamMember) => void;
+  onSave: (member: TeamMember) => Promise<void>;
 }
 
 const EditMemberDialog: React.FC<EditMemberDialogProps> = ({
@@ -47,9 +48,9 @@ const EditMemberDialog: React.FC<EditMemberDialogProps> = ({
     }
   }, [member]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (member) {
-      onSave({
+      await onSave({
         ...member,
         name: formData.name,
         email: formData.email,
