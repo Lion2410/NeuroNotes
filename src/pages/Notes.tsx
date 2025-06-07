@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+
 interface Note {
   id: string;
   title: string;
@@ -17,30 +18,29 @@ interface Note {
   source_type: string;
   duration: number | null;
 }
+
 const Notes = () => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-  const {
-    user
-  } = useAuth();
-  const {
-    toast
-  } = useToast();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const navigate = useNavigate();
+
   useEffect(() => {
     if (user) {
       fetchNotes();
     }
   }, [user]);
+
   const fetchNotes = async () => {
     try {
-      const {
-        data,
-        error
-      } = await supabase.from('transcriptions').select('*').eq('user_id', user?.id).order('created_at', {
-        ascending: false
-      });
+      const { data, error } = await supabase
+        .from('transcriptions')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
+
       if (error) {
         throw error;
       }
@@ -55,29 +55,36 @@ const Notes = () => {
       setLoading(false);
     }
   };
-  const filteredNotes = notes.filter(note => note.title.toLowerCase().includes(searchTerm.toLowerCase()) || note.content?.toLowerCase().includes(searchTerm.toLowerCase()));
+
+  const filteredNotes = notes.filter(note => 
+    note.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    note.content?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   const handleNoteClick = (noteId: string) => {
     navigate(`/transcript/${noteId}`);
   };
+
   const handleExport = (note: Note, e: React.MouseEvent) => {
     e.stopPropagation();
     const element = document.createElement('a');
-    const file = new Blob([note.content || ''], {
-      type: 'text/plain'
-    });
+    const file = new Blob([note.content || ''], { type: 'text/plain' });
     element.href = URL.createObjectURL(file);
     element.download = `${note.title.replace(/\s+/g, '_')}.txt`;
     document.body.appendChild(element);
     element.click();
     document.body.removeChild(element);
+    
     toast({
       title: "Export Complete",
       description: "Note has been downloaded successfully."
     });
   };
+
   const handleShare = async (noteId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const shareUrl = `${window.location.origin}/transcript/${noteId}`;
+    
     try {
       await navigator.clipboard.writeText(shareUrl);
       toast({
@@ -92,16 +99,20 @@ const Notes = () => {
       });
     }
   };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
   };
+
   const formatDuration = (minutes: number | null) => {
     if (!minutes) return 'Unknown';
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     return hours > 0 ? `${hours}h ${mins}min` : `${mins}min`;
   };
-  return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       {/* Header */}
       <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -110,7 +121,7 @@ const Notes = () => {
               <ArrowLeft className="h-6 w-6" />
             </Link>
             <div className="flex items-center space-x-2">
-              <img src="/lovable-uploads/a8794a28-d1ea-4182-a872-01c163c23ee5.png" alt="NeuroNotes" className="h-12 w-auto" />
+              <img src="/lovable-uploads/2d11ec38-9fc4-4af5-9224-4b5b20a91803.png" alt="NeuroNotes" className="h-12 w-auto" />
               <span className="text-2xl font-bold text-white">NeuroNotes</span>
             </div>
             <span className="text-slate-400">/</span>
@@ -129,12 +140,20 @@ const Notes = () => {
         <div className="mb-6">
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-            <Input placeholder="Search notes..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-slate-400" />
+            <Input 
+              placeholder="Search notes..." 
+              value={searchTerm} 
+              onChange={(e) => setSearchTerm(e.target.value)} 
+              className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-slate-400" 
+            />
           </div>
         </div>
 
         {/* Notes Grid */}
-        {loading ? <div className="text-center text-white">Loading notes...</div> : filteredNotes.length === 0 ? <Card className="bg-white/10 backdrop-blur-md border-white/20">
+        {loading ? (
+          <div className="text-center text-white">Loading notes...</div>
+        ) : filteredNotes.length === 0 ? (
+          <Card className="bg-white/10 backdrop-blur-md border-white/20">
             <CardContent className="p-12 text-center">
               <FileText className="h-16 w-16 text-slate-400 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-white mb-2">No Notes Found</h3>
@@ -147,8 +166,15 @@ const Notes = () => {
                 </Button>
               </Link>
             </CardContent>
-          </Card> : <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredNotes.map(note => <Card key={note.id} className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-300 cursor-pointer" onClick={() => handleNoteClick(note.id)}>
+          </Card>
+        ) : (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {filteredNotes.map((note) => (
+              <Card 
+                key={note.id} 
+                className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-300 cursor-pointer"
+                onClick={() => handleNoteClick(note.id)}
+              >
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <CardTitle className="text-white text-lg line-clamp-2">
@@ -171,19 +197,33 @@ const Notes = () => {
                     {note.content ? note.content.substring(0, 200) + '...' : 'No content available'}
                   </p>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950 flex-1" onClick={e => handleExport(note, e)}>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="border-white/30 hover:bg-white/10 text-slate-950 flex-1"
+                      onClick={(e) => handleExport(note, e)}
+                    >
                       <Download className="h-4 w-4 mr-1" />
                       Export
                     </Button>
-                    <Button size="sm" variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950 flex-1" onClick={e => handleShare(note.id, e)}>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="border-white/30 hover:bg-white/10 text-slate-950 flex-1"
+                      onClick={(e) => handleShare(note.id, e)}
+                    >
                       <Share className="h-4 w-4 mr-1" />
                       Share
                     </Button>
                   </div>
                 </CardContent>
-              </Card>)}
-          </div>}
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default Notes;
