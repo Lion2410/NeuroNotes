@@ -262,11 +262,7 @@ const Team = () => {
 
           <TabsContent value="members" className="space-y-8">
             <TeamStats teamMembers={teamMembers} />
-            <TeamMembersList 
-              teamMembers={teamMembers}
-              onEditMember={editMember}
-              onDeleteMember={deleteMember}
-            />
+            <TeamMembersList teamId={currentTeamId} />
           </TabsContent>
 
           <TabsContent value="join" className="space-y-8">
