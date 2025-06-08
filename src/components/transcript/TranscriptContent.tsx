@@ -11,8 +11,8 @@ const TranscriptContent: React.FC<TranscriptContentProps> = ({ content, isLoadin
   if (isLoading) {
     return (
       <Card className="bg-white/10 backdrop-blur-md border-white/20">
-        <CardContent className="p-6">
-          <div className="text-center text-white">Loading transcript...</div>
+        <CardContent className="p-4 md:p-6">
+          <div className="text-center text-white">Loading note...</div>
         </CardContent>
       </Card>
     );
@@ -20,13 +20,13 @@ const TranscriptContent: React.FC<TranscriptContentProps> = ({ content, isLoadin
 
   return (
     <Card className="bg-white/10 backdrop-blur-md border-white/20">
-      <CardHeader>
-        <CardTitle className="text-white">Transcript</CardTitle>
+      <CardHeader className="p-4 md:p-6 pb-2 md:pb-4">
+        <CardTitle className="text-white text-base md:text-lg">Note Content</CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="bg-white/5 rounded-lg p-6 max-h-96 overflow-y-auto">
-          <pre className="text-white whitespace-pre-wrap font-sans">
-            {content || 'No transcript content available.'}
+      <CardContent className="p-4 md:p-6 pt-0">
+        <div className="bg-white/5 rounded-lg p-3 md:p-6 max-h-64 md:max-h-96 overflow-y-auto">
+          <pre className="text-white whitespace-pre-wrap font-sans text-sm md:text-base">
+            {content || 'No note content available.'}
           </pre>
         </div>
       </CardContent>

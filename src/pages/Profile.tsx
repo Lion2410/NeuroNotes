@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, User, Save, Camera } from 'lucide-react';
@@ -175,47 +176,47 @@ const Profile = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       {/* Header */}
-      <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
+      <header className="px-4 md:px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 md:space-x-4">
             <Link to="/dashboard" className="text-white hover:text-purple-400 transition-colors">
-              <ArrowLeft className="h-6 w-6" />
+              <ArrowLeft className="h-5 w-5 md:h-6 md:w-6" />
             </Link>
             <div className="flex items-center space-x-2">
-              <img src="/lovable-uploads/e8e442bd-846b-4e60-b16a-3043d419243f.png" alt="NeuroNotes" className="h-8 w-auto" />
-              <span className="text-2xl font-bold text-white">NeuroNotes</span>
+              <img src="/lovable-uploads/82423172-8fa2-4a61-9691-e45ac0c5f57c.png" alt="NeuroNotes" className="h-8 md:h-12 w-auto" />
+              <span className="text-lg md:text-2xl font-bold text-white">NeuroNotes</span>
             </div>
           </div>
           <div className="flex items-center space-x-4">
-            <span className="text-white">Profile Settings</span>
+            <span className="text-white text-sm md:text-base">Profile Settings</span>
           </div>
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-6 py-12">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-4">Profile Settings</h1>
-          <p className="text-xl text-slate-300">Manage your account information and preferences</p>
+      <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-12">
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-4xl font-bold text-white mb-2 md:mb-4">Profile Settings</h1>
+          <p className="text-lg md:text-xl text-slate-300">Manage your account information and preferences</p>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="grid lg:grid-cols-3 gap-6 md:gap-8">
           {/* Profile Picture Section */}
           <div className="lg:col-span-1">
             <Card className="bg-white/10 backdrop-blur-md border-white/20">
               <CardHeader>
-                <CardTitle className="text-white">Profile Picture</CardTitle>
+                <CardTitle className="text-white text-lg md:text-xl">Profile Picture</CardTitle>
               </CardHeader>
               <CardContent className="text-center">
                 <div className="relative inline-block mb-4">
-                  <div className="w-32 h-32 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center mx-auto overflow-hidden">
+                  <div className="w-24 h-24 md:w-32 md:h-32 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center mx-auto overflow-hidden">
                     {avatarUrl ? (
                       <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
                     ) : (
-                      <User className="h-16 w-16 text-white" />
+                      <User className="h-12 w-12 md:h-16 md:w-16 text-white" />
                     )}
                   </div>
                   <label htmlFor="avatar-upload" className="absolute bottom-0 right-0 bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-full cursor-pointer">
-                    <Camera className="h-4 w-4" />
+                    <Camera className="h-3 w-3 md:h-4 md:w-4" />
                   </label>
                   <input
                     id="avatar-upload"
@@ -228,7 +229,7 @@ const Profile = () => {
                 </div>
                 <Button 
                   variant="outline" 
-                  className="border-white/30 hover:bg-white/10 text-slate-950"
+                  className="border-white/30 hover:bg-white/10 text-slate-950 text-sm"
                   disabled={uploading}
                   onClick={() => document.getElementById('avatar-upload')?.click()}
                 >
@@ -242,103 +243,103 @@ const Profile = () => {
           <div className="lg:col-span-2">
             <Card className="bg-white/10 backdrop-blur-md border-white/20">
               <CardHeader>
-                <CardTitle className="text-white">Personal Information</CardTitle>
+                <CardTitle className="text-white text-lg md:text-xl">Personal Information</CardTitle>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid md:grid-cols-2 gap-6">
+                <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
+                  <div className="grid md:grid-cols-2 gap-4 md:gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="firstName" className="text-white">First Name</Label>
+                      <Label htmlFor="firstName" className="text-white text-sm">First Name</Label>
                       <Input
                         id="firstName"
                         name="firstName"
                         value={formData.firstName}
                         onChange={handleInputChange}
-                        className="bg-white/10 border-white/20 text-white placeholder:text-slate-400"
+                        className="bg-white/10 border-white/20 text-white placeholder:text-slate-400 text-sm"
                         placeholder="Enter your first name"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="lastName" className="text-white">Last Name</Label>
+                      <Label htmlFor="lastName" className="text-white text-sm">Last Name</Label>
                       <Input
                         id="lastName"
                         name="lastName"
                         value={formData.lastName}
                         onChange={handleInputChange}
-                        className="bg-white/10 border-white/20 text-white placeholder:text-slate-400"
+                        className="bg-white/10 border-white/20 text-white placeholder:text-slate-400 text-sm"
                         placeholder="Enter your last name"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="email" className="text-white">Email Address</Label>
+                    <Label htmlFor="email" className="text-white text-sm">Email Address</Label>
                     <Input
                       id="email"
                       name="email"
                       type="email"
                       value={formData.email}
                       disabled
-                      className="bg-white/5 border-white/20 text-slate-400 cursor-not-allowed"
+                      className="bg-white/5 border-white/20 text-slate-400 cursor-not-allowed text-sm"
                     />
-                    <p className="text-sm text-slate-400">Email cannot be changed</p>
+                    <p className="text-xs text-slate-400">Email cannot be changed</p>
                   </div>
 
-                  <div className="grid md:grid-cols-2 gap-6">
+                  <div className="grid md:grid-cols-2 gap-4 md:gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="company" className="text-white">Company</Label>
+                      <Label htmlFor="company" className="text-white text-sm">Company</Label>
                       <Input
                         id="company"
                         name="company"
                         value={formData.company}
                         onChange={handleInputChange}
-                        className="bg-white/10 border-white/20 text-white placeholder:text-slate-400"
+                        className="bg-white/10 border-white/20 text-white placeholder:text-slate-400 text-sm"
                         placeholder="Enter your company"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="jobTitle" className="text-white">Job Title</Label>
+                      <Label htmlFor="jobTitle" className="text-white text-sm">Job Title</Label>
                       <Input
                         id="jobTitle"
                         name="jobTitle"
                         value={formData.jobTitle}
                         onChange={handleInputChange}
-                        className="bg-white/10 border-white/20 text-white placeholder:text-slate-400"
+                        className="bg-white/10 border-white/20 text-white placeholder:text-slate-400 text-sm"
                         placeholder="Enter your job title"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="phone" className="text-white">Phone Number</Label>
+                    <Label htmlFor="phone" className="text-white text-sm">Phone Number</Label>
                     <Input
                       id="phone"
                       name="phone"
                       type="tel"
                       value={formData.phone}
                       onChange={handleInputChange}
-                      className="bg-white/10 border-white/20 text-white placeholder:text-slate-400"
+                      className="bg-white/10 border-white/20 text-white placeholder:text-slate-400 text-sm"
                       placeholder="Enter your phone number"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="bio" className="text-white">Bio</Label>
+                    <Label htmlFor="bio" className="text-white text-sm">Bio</Label>
                     <Textarea
                       id="bio"
                       name="bio"
                       value={formData.bio}
                       onChange={handleInputChange}
-                      className="bg-white/10 border-white/20 text-white placeholder:text-slate-400 min-h-[100px]"
+                      className="bg-white/10 border-white/20 text-white placeholder:text-slate-400 min-h-[80px] md:min-h-[100px] text-sm"
                       placeholder="Tell us about yourself..."
                     />
                   </div>
 
-                  <div className="flex gap-4">
+                  <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
                     <Button 
                       type="submit" 
                       disabled={isLoading} 
-                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-sm"
                     >
                       {isLoading ? 'Saving...' : (
                         <>
@@ -351,7 +352,7 @@ const Profile = () => {
                       type="button" 
                       variant="outline" 
                       onClick={() => navigate('/dashboard')} 
-                      className="border-white/30 hover:bg-white/10 text-slate-950"
+                      className="border-white/30 hover:bg-white/10 text-slate-950 text-sm"
                     >
                       Cancel
                     </Button>

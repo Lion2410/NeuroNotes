@@ -45,29 +45,31 @@ const TranscriptMetadata: React.FC<TranscriptMetadataProps> = ({
 
   return (
     <Card className="bg-white/10 backdrop-blur-md border-white/20">
-      <CardHeader>
-        <CardTitle className="text-white">Details</CardTitle>
+      <CardHeader className="p-4 md:p-6 pb-2 md:pb-4">
+        <CardTitle className="text-white text-base md:text-lg">Details</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3 md:space-y-4 p-4 md:p-6 pt-0">
         <div className="flex items-center gap-2">
-          <FileText className="h-4 w-4 text-purple-400" />
-          <span className="text-slate-300">Source:</span>
-          <Badge variant="secondary" className="bg-purple-600/20 text-purple-300">
+          <FileText className="h-3 w-3 md:h-4 md:w-4 text-purple-400" />
+          <span className="text-slate-300 text-xs md:text-sm">Source:</span>
+          <Badge variant="secondary" className="bg-purple-600/20 text-purple-300 text-xs">
             {getSourceLabel(sourceType)}
           </Badge>
         </div>
         
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-blue-400" />
-          <span className="text-slate-300">Created:</span>
-          <span className="text-white">{formatDate(createdAt)}</span>
+        <div className="flex items-start gap-2">
+          <Calendar className="h-3 w-3 md:h-4 md:w-4 text-blue-400 mt-0.5" />
+          <div className="flex flex-col">
+            <span className="text-slate-300 text-xs md:text-sm">Created:</span>
+            <span className="text-white text-xs md:text-sm break-words">{formatDate(createdAt)}</span>
+          </div>
         </div>
         
         {duration && (
           <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-green-400" />
-            <span className="text-slate-300">Duration:</span>
-            <span className="text-white">{formatDuration(duration)}</span>
+            <Clock className="h-3 w-3 md:h-4 md:w-4 text-green-400" />
+            <span className="text-slate-300 text-xs md:text-sm">Duration:</span>
+            <span className="text-white text-xs md:text-sm">{formatDuration(duration)}</span>
           </div>
         )}
       </CardContent>
