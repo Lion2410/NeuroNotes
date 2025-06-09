@@ -13,7 +13,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { generateTextSummary } from '@/utils/textSummarizer';
 
 interface Transcription {
   id: string;
@@ -98,7 +97,13 @@ const NoteEditor = () => {
 
     setGeneratingSummary(true);
     try {
-      const summary = generateTextSummary(note.content);
+      const response = await supabase.functions.invoke('generate-summary-hf', {
+        body: { content: note.content }
+      });
+
+      if (response.error) throw response.error;
+
+      const { summary } = response.data;
 
       const { error } = await supabase
         .from('transcriptions')
