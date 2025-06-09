@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Edit2, Trash2 } from 'lucide-react';
@@ -97,17 +96,13 @@ const TranscriptEditor = () => {
 
     setGeneratingSummary(true);
     try {
-      const response = await fetch('/api/generate-summary', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ content: transcription.content }),
+      const response = await supabase.functions.invoke('generate-summary-hf', {
+        body: { content: transcription.content }
       });
 
-      if (!response.ok) throw new Error('Failed to generate summary');
+      if (response.error) throw response.error;
 
-      const { summary } = await response.json();
+      const { summary } = response.data;
 
       const { error } = await supabase
         .from('transcriptions')
