@@ -21,8 +21,16 @@ serve(async (req) => {
       throw new Error('Content is required');
     }
 
-    const hf = new HfInference(Deno.env.get('HUGGING_FACE_ACCESS_TOKEN'));
+    const hfToken = Deno.env.get('HUGGING_FACE_ACCESS_TOKEN');
+    
+    if (!hfToken) {
+      throw new Error('Hugging Face access token is not configured');
+    }
 
+    console.log('Initializing Hugging Face client...');
+    const hf = new HfInference(hfToken);
+
+    console.log('Calling Hugging Face summarization API...');
     const response = await hf.summarization({
       model: 'facebook/bart-large-cnn',
       inputs: content,
@@ -33,6 +41,7 @@ serve(async (req) => {
       },
     });
 
+    console.log('Summarization response:', response);
     const summary = response.summary_text;
 
     return new Response(JSON.stringify({ summary }), {
@@ -40,7 +49,22 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error('Error in generate-summary-hf function:', error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    
+    // Provide more specific error messages
+    let errorMessage = 'Failed to generate summary. Please try again.';
+    
+    if (error.message.includes('authentication') || error.message.includes('permissions')) {
+      errorMessage = 'Hugging Face authentication failed. Please check your access token configuration.';
+    } else if (error.message.includes('rate limit')) {
+      errorMessage = 'Rate limit exceeded. Please try again in a few minutes.';
+    } else if (error.message.includes('model')) {
+      errorMessage = 'Model error. Please try again or contact support.';
+    }
+    
+    return new Response(JSON.stringify({ 
+      error: errorMessage,
+      details: error.message 
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
