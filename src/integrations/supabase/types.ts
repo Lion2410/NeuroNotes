@@ -39,6 +39,13 @@ export type Database = {
             referencedRelation: "groups"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "user_groups_with_stats"
+            referencedColumns: ["id"]
+          },
         ]
       }
       groups: {
@@ -95,6 +102,13 @@ export type Database = {
             referencedRelation: "groups"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "invitations_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "user_groups_with_stats"
+            referencedColumns: ["id"]
+          },
         ]
       }
       notes: {
@@ -134,6 +148,13 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notes_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "user_groups_with_stats"
             referencedColumns: ["id"]
           },
         ]
@@ -284,13 +305,94 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      group_members_with_profiles: {
+        Row: {
+          avatar_url: string | null
+          email: string | null
+          first_name: string | null
+          group_id: number | null
+          id: number | null
+          is_admin: boolean | null
+          joined_at: string | null
+          last_name: string | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "user_groups_with_stats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notes_with_profiles: {
+        Row: {
+          content: string | null
+          created_at: string | null
+          email: string | null
+          first_name: string | null
+          group_id: number | null
+          id: number | null
+          is_private: boolean | null
+          last_name: string | null
+          title: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notes_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notes_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "user_groups_with_stats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_groups_with_stats: {
+        Row: {
+          created_at: string | null
+          creator_id: string | null
+          id: number | null
+          is_admin: boolean | null
+          member_count: number | null
+          name: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_user_groups: {
         Args: { _user_id: string }
         Returns: {
           group_id: number
+        }[]
+      }
+      get_user_groups_optimized: {
+        Args: { _user_id: string }
+        Returns: {
+          group_id: number
+          group_name: string
+          creator_id: string
+          created_at: string
+          member_count: number
+          is_admin: boolean
         }[]
       }
       is_group_admin: {

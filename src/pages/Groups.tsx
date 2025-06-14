@@ -1,342 +1,161 @@
 
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, UserPlus, Users } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/hooks/use-toast';
+import { Users, Plus, UserPlus, Settings } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import GroupsList from '@/components/groups/GroupsList';
+import { useToast } from '@/hooks/use-toast';
 import CreateGroupDialog from '@/components/groups/CreateGroupDialog';
 import JoinGroupTab from '@/components/groups/JoinGroupTab';
+import GroupsList from '@/components/groups/GroupsList';
 
-interface Group {
+interface GroupWithStats {
   id: number;
   name: string;
   creator_id: string;
   created_at: string;
-  member_count?: number;
-  is_admin?: boolean;
+  member_count: number;
+  is_admin: boolean;
 }
 
-const Groups = () => {
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [loading, setLoading] = useState(true);
+const Groups: React.FC = () => {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [joinGroupUrl, setJoinGroupUrl] = useState('');
-  const [activeTab, setActiveTab] = useState('groups');
-  const { toast } = useToast();
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (user) {
-      fetchGroups();
-    }
-  }, [user]);
+  // Use the optimized view for better performance
+  const { data: groups = [], isLoading, error, refetch } = useQuery({
+    queryKey: ['user-groups', user?.id],
+    queryFn: async (): Promise<GroupWithStats[]> => {
+      if (!user) throw new Error('User not authenticated');
 
-  const fetchGroups = async () => {
-    try {
-      console.log('Fetching groups for user:', user?.id);
+      console.log('Fetching groups using optimized view...');
       
-      // Get user's profile information
-      const { data: userProfile, error: profileError } = await supabase
-        .from('profiles')
-        .select('first_name, last_name')
-        .eq('id', user?.id)
-        .single();
-
-      if (profileError) {
-        console.error('Error fetching user profile:', profileError);
-      }
-
-      console.log('User profile:', userProfile);
-      
-      // First, let's debug by checking ALL group_members data
-      const { data: allMemberships, error: allMembershipsError } = await supabase
-        .from('group_members')
-        .select('*');
-      
-      console.log('ALL group_members data:', allMemberships);
-      
-      // Then check specifically for this user
-      const { data: membershipData, error: membershipError } = await supabase
-        .from('group_members')
-        .select('group_id, is_admin, user_id, joined_at')
-        .eq('user_id', user?.id);
-
-      if (membershipError) {
-        console.error('Error fetching memberships:', membershipError);
-        throw membershipError;
-      }
-
-      console.log('User memberships for user', user?.id, ':', membershipData);
-
-      // Let's also check groups created by this user
-      const { data: createdGroups, error: createdGroupsError } = await supabase
-        .from('groups')
-        .select('id, name, creator_id, created_at')
-        .eq('creator_id', user?.id);
-        
-      console.log('Groups created by user:', createdGroups);
-
-      // Combine groups where user is member OR creator
-      let userGroupIds: number[] = [];
-      
-      if (membershipData && membershipData.length > 0) {
-        userGroupIds = membershipData.map(m => m.group_id);
-      }
-      
-      if (createdGroups && createdGroups.length > 0) {
-        const createdGroupIds = createdGroups.map(g => g.id);
-        userGroupIds = [...new Set([...userGroupIds, ...createdGroupIds])];
-      }
-
-      console.log('Combined user group IDs:', userGroupIds);
-
-      if (userGroupIds.length === 0) {
-        console.log('User has no group access');
-        setGroups([]);
-        return;
-      }
-
-      // Fetch all groups where user has access
-      const { data: userGroups, error: groupsError } = await supabase
-        .from('groups')
-        .select('id, name, creator_id, created_at')
-        .in('id', userGroupIds)
+      // Use the optimized view that joins data efficiently
+      const { data, error } = await supabase
+        .from('user_groups_with_stats')
+        .select('*')
         .order('created_at', { ascending: false });
 
-      if (groupsError) {
-        console.error('Error fetching groups:', groupsError);
-        throw groupsError;
+      if (error) {
+        console.error('Error fetching groups:', error);
+        throw error;
       }
 
-      console.log('Fetched user groups:', userGroups);
+      console.log('Groups fetched:', data?.length || 0);
+      return data || [];
+    },
+    enabled: !!user,
+    staleTime: 30000, // Cache for 30 seconds
+    refetchOnWindowFocus: false
+  });
 
-      // Process the groups to add member counts and admin status
-      const processedGroups = await Promise.all(
-        (userGroups || []).map(async (group: any) => {
-          // Get member count for this group
-          const { count } = await supabase
-            .from('group_members')
-            .select('*', { count: 'exact', head: true })
-            .eq('group_id', group.id);
-
-          // Check if user is admin (either through membership or being creator)
-          const membership = membershipData?.find(m => m.group_id === group.id);
-          const isCreator = group.creator_id === user?.id;
-          const isAdmin = isCreator || (membership?.is_admin || false);
-
-          // For groups created by the user, add 1 to member count to include themselves
-          const adjustedMemberCount = isCreator ? (count || 0) + 1 : (count || 0);
-
-          return {
-            id: group.id,
-            name: group.name,
-            creator_id: group.creator_id,
-            created_at: group.created_at,
-            member_count: adjustedMemberCount,
-            is_admin: isAdmin
-          };
-        })
-      );
-      
-      console.log('Processed groups:', processedGroups);
-      setGroups(processedGroups);
-    } catch (error: any) {
-      console.error('Error fetching groups:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to load groups.",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreateGroup = async (groupName: string) => {
-    if (!user) {
-      toast({
-        title: "Error",
-        description: "You must be logged in to create a group.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      console.log('Creating group:', groupName, 'for user:', user.id);
-      
-      // Create the group first
-      const { data: newGroup, error: groupError } = await supabase
-        .from('groups')
-        .insert({
-          name: groupName,
-          creator_id: user.id
-        })
-        .select()
-        .single();
-
-      if (groupError) {
-        console.error('Group creation error:', groupError);
-        throw groupError;
-      }
-
-      console.log('Group created successfully:', newGroup);
-
-      // Get user's profile name for the success message
-      const { data: userProfile } = await supabase
-        .from('profiles')
-        .select('first_name, last_name')
-        .eq('id', user.id)
-        .single();
-
-      const userName = userProfile ? `${userProfile.first_name} ${userProfile.last_name}`.trim() : 'You';
-      
-      toast({
-        title: "Group Created",
-        description: `"${groupName}" has been created successfully with ${userName} as admin (1 member).`
-      });
-
-      // Refresh the list
-      await fetchGroups();
-    } catch (error: any) {
-      console.error('Error creating group:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create group.",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleJoinGroup = async () => {
-    if (!joinGroupUrl.trim()) {
-      toast({
-        title: "Invalid URL",
-        description: "Please enter a valid group invite URL.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      const url = new URL(joinGroupUrl);
-      const inviteToken = url.searchParams.get('invite');
-      
-      if (!inviteToken) {
-        throw new Error('Invalid invite link');
-      }
-
-      // Call the database function to join the group
-      const { data, error } = await supabase.rpc('join_group_via_invitation', {
-        _invite_token: inviteToken,
-        _user_id: user?.id
-      });
-
-      if (error) throw error;
-
-      if (data) {
-        toast({
-          title: "Joined Group!",
-          description: "You have successfully joined the group."
-        });
-        fetchGroups(); // Refresh the list
-        setJoinGroupUrl(''); // Clear the input
-      } else {
-        toast({
-          title: "Invalid Invite",
-          description: "The invite link is invalid or has expired.",
-          variant: "destructive"
-        });
-      }
-    } catch (error: any) {
-      console.error('Error joining group:', error);
-      toast({
-        title: "Join Failed",
-        description: error.message || "Failed to join group.",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const handleOpenCreateDialog = () => {
+  const handleCreateGroup = () => {
     setCreateDialogOpen(true);
   };
 
-  if (loading) {
+  const handleGroupCreated = () => {
+    // Invalidate and refetch groups
+    queryClient.invalidateQueries({ queryKey: ['user-groups'] });
+    setCreateDialogOpen(false);
+    toast({
+      title: "Success",
+      description: "Group created successfully!"
+    });
+  };
+
+  const handleRefresh = () => {
+    refetch();
+  };
+
+  if (error) {
+    console.error('Error in Groups component:', error);
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black flex items-center justify-center">
-        <div className="text-white">Loading groups...</div>
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Error Loading Groups</h2>
+          <p className="text-gray-600 mb-4">
+            {error instanceof Error ? error.message : 'Failed to load groups'}
+          </p>
+          <Button onClick={handleRefresh}>Try Again</Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
-      {/* Header */}
-      <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Link to="/dashboard" className="text-white hover:text-purple-400 transition-colors">
-              <ArrowLeft className="h-6 w-6" />
-            </Link>
-            <div className="flex items-center space-x-2">
-              <img src="/lovable-uploads/2d11ec38-9fc4-4af5-9224-4b5b20a91803.png" alt="NeuroNotes" className="h-12 w-auto" />
-              <span className="text-2xl font-bold text-white">NeuroNotes</span>
-            </div>
-            <span className="text-slate-400">/</span>
-            <span className="text-white font-medium">Groups</span>
-          </div>
-          <Button 
-            onClick={handleOpenCreateDialog}
-            className="bg-purple-600 hover:bg-purple-700 text-white"
-          >
-            <UserPlus className="h-4 w-4 mr-2" />
-            Create Group
-          </Button>
-        </div>
-      </header>
-
-      <div className="max-w-7xl mx-auto px-6 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
+      <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-4">Groups</h1>
-          <p className="text-xl text-slate-300">Create and join groups to share notes and collaborate</p>
+          <h1 className="text-4xl font-bold text-white mb-2">Groups</h1>
+          <p className="text-slate-300">
+            Collaborate with others by creating or joining groups
+          </p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-white/10 border-white/20 mb-8">
-            <TabsTrigger value="groups" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
-              <Users className="h-4 w-4 mr-2" />
+        <Tabs defaultValue="my-groups" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-8">
+            <TabsTrigger value="my-groups" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
               My Groups
             </TabsTrigger>
-            <TabsTrigger value="join" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
+            <TabsTrigger value="join-group" className="flex items-center gap-2">
+              <UserPlus className="h-4 w-4" />
               Join Group
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="groups" className="space-y-8">
-            <GroupsList groups={groups} onRefresh={fetchGroups} onCreateGroup={handleOpenCreateDialog} />
+          <TabsContent value="my-groups">
+            <Card className="bg-white/10 backdrop-blur-md border-white/20">
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <CardTitle className="text-white">My Groups</CardTitle>
+                    <CardDescription className="text-slate-300">
+                      Groups you've created or joined
+                    </CardDescription>
+                  </div>
+                  <Button 
+                    onClick={handleCreateGroup}
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Group
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
+                    <p className="text-white">Loading groups...</p>
+                  </div>
+                ) : (
+                  <GroupsList 
+                    groups={groups} 
+                    onRefresh={handleRefresh}
+                    onCreateGroup={handleCreateGroup}
+                  />
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
-          <TabsContent value="join" className="space-y-8">
-            <JoinGroupTab
-              joinGroupUrl={joinGroupUrl}
-              onJoinGroupUrlChange={setJoinGroupUrl}
-              onJoinGroup={handleJoinGroup}
-            />
+          <TabsContent value="join-group">
+            <JoinGroupTab onJoinSuccess={handleRefresh} />
           </TabsContent>
         </Tabs>
-      </div>
 
-      <CreateGroupDialog
-        isOpen={createDialogOpen}
-        onClose={() => setCreateDialogOpen(false)}
-        onCreateGroup={handleCreateGroup}
-      />
+        <CreateGroupDialog
+          isOpen={createDialogOpen}
+          onClose={() => setCreateDialogOpen(false)}
+          onGroupCreated={handleGroupCreated}
+        />
+      </div>
     </div>
   );
 };
