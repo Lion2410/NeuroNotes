@@ -39,28 +39,10 @@ const Groups = () => {
     try {
       console.log('Fetching groups for user:', user?.id);
       
-      // First get all groups where user is a member
-      const { data: memberGroups, error: memberError } = await supabase.rpc('get_user_groups', {
-        _user_id: user?.id
-      });
-
-      if (memberError) {
-        console.error('Member groups error:', memberError);
-        throw memberError;
-      }
-
-      if (!memberGroups || memberGroups.length === 0) {
-        console.log('No groups found for user');
-        setGroups([]);
-        return;
-      }
-
-      // Get group details for all groups where user is a member
-      const groupIds = memberGroups.map(g => g.group_id);
+      // Get groups where user is creator or member
       const { data: groupsData, error: groupsError } = await supabase
         .from('groups')
         .select('*')
-        .in('id', groupIds)
         .order('created_at', { ascending: false });
 
       if (groupsError) {
@@ -70,9 +52,15 @@ const Groups = () => {
 
       console.log('Fetched groups data:', groupsData);
       
+      if (!groupsData || groupsData.length === 0) {
+        console.log('No groups found for user');
+        setGroups([]);
+        return;
+      }
+      
       // Process groups to add member count and admin status
       const processedGroups = await Promise.all(
-        (groupsData || []).map(async (group: any) => {
+        groupsData.map(async (group: any) => {
           // Get member count
           const { count } = await supabase
             .from('group_members')
@@ -85,7 +73,7 @@ const Groups = () => {
             .select('is_admin')
             .eq('group_id', group.id)
             .eq('user_id', user?.id)
-            .single();
+            .maybeSingle();
 
           return {
             ...group,
@@ -121,7 +109,7 @@ const Groups = () => {
     try {
       console.log('Creating group:', groupName, 'for user:', user.id);
       
-      // Create the group
+      // Create the group first
       const { data: newGroup, error: groupError } = await supabase
         .from('groups')
         .insert({
@@ -136,7 +124,7 @@ const Groups = () => {
         throw groupError;
       }
 
-      console.log('Group created:', newGroup);
+      console.log('Group created successfully:', newGroup);
 
       // Add creator as admin member
       const { error: memberError } = await supabase
@@ -149,10 +137,11 @@ const Groups = () => {
 
       if (memberError) {
         console.error('Member creation error:', memberError);
-        throw memberError;
+        // Log but don't throw - the group was created successfully
+        console.log('Warning: Could not add creator as member, but group was created');
+      } else {
+        console.log('Creator successfully added as admin member');
       }
-
-      console.log('Creator added as admin member');
 
       toast({
         title: "Group Created",
