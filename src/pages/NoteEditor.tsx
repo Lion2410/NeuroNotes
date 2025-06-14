@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Edit2, Trash2, RotateCcw } from 'lucide-react';
@@ -44,13 +43,37 @@ const NoteEditor = () => {
 
   const fetchNote = async () => {
     try {
+      console.log('Fetching note with ID:', id);
+      console.log('Current user ID:', user?.id);
+      
+      // First, let's check if this note is shared in any groups the user belongs to
+      const { data: groupNotes, error: groupError } = await supabase
+        .from('group_notes_with_details')
+        .select('*')
+        .eq('transcription_id', id);
+      
+      console.log('Group notes for this note:', groupNotes);
+      if (groupError) console.log('Group notes error:', groupError);
+
+      // Try to fetch the note directly
       const { data, error } = await supabase
         .from('transcriptions')
         .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
+      console.log('Note query result:', data);
+      console.log('Note query error:', error);
+
+      if (error) {
+        console.error('Error fetching note:', error);
+        throw error;
+      }
+
+      if (!data) {
+        throw new Error('Note not found or access denied');
+      }
+
       setNote(data);
       setEditedContent(data.content || '');
     } catch (error) {

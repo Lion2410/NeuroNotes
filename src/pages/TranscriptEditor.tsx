@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Edit2, Trash2, RotateCcw } from 'lucide-react';
@@ -44,13 +43,37 @@ const TranscriptEditor = () => {
 
   const fetchTranscription = async () => {
     try {
+      console.log('Fetching transcription with ID:', id);
+      console.log('Current user ID:', user?.id);
+      
+      // First, let's check if this transcription is shared in any groups the user belongs to
+      const { data: groupNotes, error: groupError } = await supabase
+        .from('group_notes_with_details')
+        .select('*')
+        .eq('transcription_id', id);
+      
+      console.log('Group notes for this transcription:', groupNotes);
+      if (groupError) console.log('Group notes error:', groupError);
+
+      // Try to fetch the transcription directly
       const { data, error } = await supabase
         .from('transcriptions')
         .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
+      console.log('Transcription query result:', data);
+      console.log('Transcription query error:', error);
+
+      if (error) {
+        console.error('Error fetching transcription:', error);
+        throw error;
+      }
+
+      if (!data) {
+        throw new Error('Transcription not found or access denied');
+      }
+
       setTranscription(data);
       setEditedContent(data.content || '');
     } catch (error) {
