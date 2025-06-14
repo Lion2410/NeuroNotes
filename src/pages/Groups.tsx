@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, UserPlus, Users } from 'lucide-react';
@@ -40,27 +39,40 @@ const Groups = () => {
     try {
       console.log('Fetching groups for user:', user?.id);
       
-      const { data, error } = await supabase
+      // First get all groups where user is a member
+      const { data: memberGroups, error: memberError } = await supabase.rpc('get_user_groups', {
+        _user_id: user?.id
+      });
+
+      if (memberError) {
+        console.error('Member groups error:', memberError);
+        throw memberError;
+      }
+
+      if (!memberGroups || memberGroups.length === 0) {
+        console.log('No groups found for user');
+        setGroups([]);
+        return;
+      }
+
+      // Get group details for all groups where user is a member
+      const groupIds = memberGroups.map(g => g.group_id);
+      const { data: groupsData, error: groupsError } = await supabase
         .from('groups')
-        .select(`
-          *,
-          group_members!inner(
-            user_id,
-            is_admin
-          )
-        `)
+        .select('*')
+        .in('id', groupIds)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
+      if (groupsError) {
+        console.error('Groups data error:', groupsError);
+        throw groupsError;
       }
-      
-      console.log('Fetched groups:', data);
+
+      console.log('Fetched groups data:', groupsData);
       
       // Process groups to add member count and admin status
       const processedGroups = await Promise.all(
-        (data || []).map(async (group: any) => {
+        (groupsData || []).map(async (group: any) => {
           // Get member count
           const { count } = await supabase
             .from('group_members')
@@ -68,14 +80,17 @@ const Groups = () => {
             .eq('group_id', group.id);
 
           // Check if current user is admin
-          const currentUserMembership = group.group_members.find(
-            (member: any) => member.user_id === user?.id
-          );
+          const { data: memberData } = await supabase
+            .from('group_members')
+            .select('is_admin')
+            .eq('group_id', group.id)
+            .eq('user_id', user?.id)
+            .single();
 
           return {
             ...group,
             member_count: count || 0,
-            is_admin: currentUserMembership?.is_admin || group.creator_id === user?.id
+            is_admin: memberData?.is_admin || group.creator_id === user?.id
           };
         })
       );
@@ -94,10 +109,17 @@ const Groups = () => {
   };
 
   const handleCreateGroup = async (groupName: string) => {
-    if (!user) return;
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to create a group.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     try {
-      console.log('Creating group:', groupName);
+      console.log('Creating group:', groupName, 'for user:', user.id);
       
       // Create the group
       const { data: newGroup, error: groupError } = await supabase
@@ -109,7 +131,12 @@ const Groups = () => {
         .select()
         .single();
 
-      if (groupError) throw groupError;
+      if (groupError) {
+        console.error('Group creation error:', groupError);
+        throw groupError;
+      }
+
+      console.log('Group created:', newGroup);
 
       // Add creator as admin member
       const { error: memberError } = await supabase
@@ -120,14 +147,20 @@ const Groups = () => {
           is_admin: true
         });
 
-      if (memberError) throw memberError;
+      if (memberError) {
+        console.error('Member creation error:', memberError);
+        throw memberError;
+      }
+
+      console.log('Creator added as admin member');
 
       toast({
         title: "Group Created",
         description: `"${groupName}" has been created successfully.`
       });
 
-      fetchGroups(); // Refresh the list
+      // Refresh the list
+      await fetchGroups();
     } catch (error: any) {
       console.error('Error creating group:', error);
       toast({
