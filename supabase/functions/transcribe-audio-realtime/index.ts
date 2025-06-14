@@ -31,7 +31,10 @@ serve(async (req) => {
         const deepgramApiKey = Deno.env.get('DEEPGRAM_API_KEY');
         if (!deepgramApiKey) {
           console.error('Deepgram API key not configured');
-          socket.send(JSON.stringify({ error: 'Deepgram API key not configured' }));
+          socket.send(JSON.stringify({ 
+            type: 'error',
+            error: 'Deepgram API key not configured' 
+          }));
           return;
         }
 
@@ -46,7 +49,7 @@ serve(async (req) => {
           console.log("Sending audio to Deepgram, size:", bytes.length);
 
           // Send to Deepgram for real-time transcription
-          const response = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&punctuate=true', {
+          const response = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&punctuate=true&interim_results=false', {
             method: 'POST',
             headers: {
               'Authorization': `Token ${deepgramApiKey}`,
@@ -58,32 +61,46 @@ serve(async (req) => {
           if (response.ok) {
             const result = await response.json();
             console.log("Deepgram response:", result);
-            const transcript = result.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
             
-            if (transcript.trim()) {
+            const transcript = result.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
+            const confidence = result.results?.channels?.[0]?.alternatives?.[0]?.confidence || 0;
+            
+            // Only send non-empty transcripts with reasonable confidence
+            if (transcript.trim() && confidence > 0.5) {
               socket.send(JSON.stringify({
                 type: 'transcript',
-                transcript: transcript,
-                confidence: result.results?.channels?.[0]?.alternatives?.[0]?.confidence || 0,
+                transcript: transcript.trim(),
+                confidence: confidence,
+                timestamp: new Date().toISOString()
               }));
             }
           } else {
-            console.error('Deepgram API error:', response.status, await response.text());
-            socket.send(JSON.stringify({ error: 'Transcription service error' }));
+            const errorText = await response.text();
+            console.error('Deepgram API error:', response.status, errorText);
+            socket.send(JSON.stringify({ 
+              type: 'error',
+              error: 'Transcription service temporarily unavailable' 
+            }));
           }
         } catch (transcriptionError) {
           console.error('Transcription error:', transcriptionError);
-          socket.send(JSON.stringify({ error: 'Failed to process audio' }));
+          socket.send(JSON.stringify({ 
+            type: 'error',
+            error: 'Failed to process audio data' 
+          }));
         }
       }
     } catch (error) {
       console.error('WebSocket message error:', error);
-      socket.send(JSON.stringify({ error: 'Failed to process message' }));
+      socket.send(JSON.stringify({ 
+        type: 'error',
+        error: 'Failed to process message' 
+      }));
     }
   };
 
-  socket.onclose = () => {
-    console.log("WebSocket connection closed");
+  socket.onclose = (event) => {
+    console.log("WebSocket connection closed:", event.code, event.reason);
   };
 
   socket.onerror = (error) => {
