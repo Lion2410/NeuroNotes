@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LogOut, Plus, Search, Filter, Play, Users, FileText, Download, Share, User } from 'lucide-react';
@@ -63,17 +64,31 @@ const Dashboard = () => {
 
   const fetchGroupsCount = async () => {
     try {
-      const { count, error } = await supabase
-        .from('groups')
-        .select('*', { count: 'exact', head: true })
-        .or(`creator_id.eq.${user?.id},group_members.user_id.eq.${user?.id}`)
-        .inner('group_members', 'id', 'group_id');
+      // Use the get_user_groups function to get groups where user is a member
+      const { data: userGroups, error: memberError } = await supabase.rpc('get_user_groups', {
+        _user_id: user?.id
+      });
 
-      if (error) {
-        console.error('Error fetching groups count:', error);
-        return;
+      if (memberError) {
+        console.error('Error fetching user groups:', memberError);
       }
-      setTotalGroups(count || 0);
+
+      // Also get groups where user is the creator
+      const { data: createdGroups, error: creatorError } = await supabase
+        .from('groups')
+        .select('id')
+        .eq('creator_id', user?.id);
+
+      if (creatorError) {
+        console.error('Error fetching created groups:', creatorError);
+      }
+
+      // Combine and deduplicate group IDs
+      const memberGroupIds = userGroups?.map(g => g.group_id) || [];
+      const createdGroupIds = createdGroups?.map(g => g.id) || [];
+      const allGroupIds = [...new Set([...memberGroupIds, ...createdGroupIds])];
+      
+      setTotalGroups(allGroupIds.length);
     } catch (error: any) {
       console.error('Error fetching groups count:', error);
     }
