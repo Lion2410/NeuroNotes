@@ -119,6 +119,14 @@ const Groups: React.FC = () => {
         <GroupsHeader />
 
         <div className="container mx-auto px-4 py-8">
+          {/* Page Title and Description */}
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold text-white mb-2">Groups</h1>
+            <p className="text-slate-300">
+              Collaborate with others by creating or joining groups
+            </p>
+          </div>
+
           <Tabs defaultValue="my-groups" className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-8 bg-white/10 border-white/20">
               <TabsTrigger value="my-groups" className="flex items-center gap-2 text-white data-[state=active]:bg-white/20 data-[state=active]:text-white">

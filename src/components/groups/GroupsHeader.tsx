@@ -18,8 +18,8 @@ const GroupsHeader: React.FC = () => {
         background: 'linear-gradient(to bottom right, #2E3048 0%, #4E3171 47%, #683391 100%)'
       }}
     >
-      <div className="container mx-auto px-6 py-4">
-        <div className="flex items-center gap-4 mb-4">
+      <div className="container mx-auto px-6 py-3">
+        <div className="flex items-center gap-4">
           <Button
             variant="ghost"
             size="sm"
@@ -43,13 +43,6 @@ const GroupsHeader: React.FC = () => {
               <span className="text-lg">Groups</span>
             </div>
           </div>
-        </div>
-        
-        <div>
-          <h1 className="text-4xl font-bold text-white mb-2">Groups</h1>
-          <p className="text-slate-300">
-            Collaborate with others by creating or joining groups
-          </p>
         </div>
       </div>
     </div>
