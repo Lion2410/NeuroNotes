@@ -11,15 +11,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
 interface GroupMember {
-  id: string;
+  id: number;
   user_id: string;
   is_admin: boolean;
   joined_at: string;
-  profiles: {
+  profile?: {
     first_name: string | null;
     last_name: string | null;
     email: string | null;
-  };
+  } | null;
 }
 
 interface GroupNote {
@@ -29,10 +29,10 @@ interface GroupNote {
   is_private: boolean;
   created_at: string;
   user_id: string;
-  profiles: {
+  profile?: {
     first_name: string | null;
     last_name: string | null;
-  };
+  } | null;
 }
 
 interface Group {
@@ -79,24 +79,34 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
     
     setLoadingMembers(true);
     try {
-      const { data, error } = await supabase
+      // First get the group members
+      const { data: memberData, error: memberError } = await supabase
         .from('group_members')
-        .select(`
-          id,
-          user_id,
-          is_admin,
-          joined_at,
-          profiles (
-            first_name,
-            last_name,
-            email
-          )
-        `)
+        .select('id, user_id, is_admin, joined_at')
         .eq('group_id', group.id)
         .order('joined_at', { ascending: true });
 
-      if (error) throw error;
-      setMembers(data || []);
+      if (memberError) throw memberError;
+
+      // Then get profiles for each member
+      const membersWithProfiles: GroupMember[] = [];
+      
+      if (memberData) {
+        for (const member of memberData) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('first_name, last_name, email')
+            .eq('id', member.user_id)
+            .single();
+
+          membersWithProfiles.push({
+            ...member,
+            profile: profileData
+          });
+        }
+      }
+
+      setMembers(membersWithProfiles);
     } catch (error: any) {
       console.error('Error fetching members:', error);
       toast({
@@ -114,25 +124,34 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
     
     setLoadingNotes(true);
     try {
-      const { data, error } = await supabase
+      // First get the notes
+      const { data: noteData, error: noteError } = await supabase
         .from('notes')
-        .select(`
-          id,
-          title,
-          content,
-          is_private,
-          created_at,
-          user_id,
-          profiles (
-            first_name,
-            last_name
-          )
-        `)
+        .select('id, title, content, is_private, created_at, user_id')
         .eq('group_id', group.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setNotes(data || []);
+      if (noteError) throw noteError;
+
+      // Then get profiles for each note author
+      const notesWithProfiles: GroupNote[] = [];
+      
+      if (noteData) {
+        for (const note of noteData) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('first_name, last_name')
+            .eq('id', note.user_id)
+            .single();
+
+          notesWithProfiles.push({
+            ...note,
+            profile: profileData
+          });
+        }
+      }
+
+      setNotes(notesWithProfiles);
     } catch (error: any) {
       console.error('Error fetching notes:', error);
       toast({
@@ -253,12 +272,12 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
                       <div className="flex justify-between items-center">
                         <div>
                           <p className="font-medium">
-                            {member.profiles?.first_name || member.profiles?.last_name
-                              ? `${member.profiles.first_name || ''} ${member.profiles.last_name || ''}`.trim()
-                              : member.profiles?.email || 'Unknown User'}
+                            {member.profile?.first_name || member.profile?.last_name
+                              ? `${member.profile.first_name || ''} ${member.profile.last_name || ''}`.trim()
+                              : member.profile?.email || 'Unknown User'}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {member.profiles?.email}
+                            {member.profile?.email}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             Joined {new Date(member.joined_at).toLocaleDateString()}
@@ -304,8 +323,8 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
                         <div>
                           <CardTitle className="text-base">{note.title}</CardTitle>
                           <CardDescription>
-                            By {note.profiles?.first_name || note.profiles?.last_name
-                              ? `${note.profiles.first_name || ''} ${note.profiles.last_name || ''}`.trim()
+                            By {note.profile?.first_name || note.profile?.last_name
+                              ? `${note.profile.first_name || ''} ${note.profile.last_name || ''}`.trim()
                               : 'Unknown User'} • {new Date(note.created_at).toLocaleDateString()}
                           </CardDescription>
                         </div>
