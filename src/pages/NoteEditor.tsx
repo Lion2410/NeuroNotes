@@ -32,6 +32,7 @@ const NoteEditor = () => {
   const [editingContent, setEditingContent] = useState(false);
   const [editedContent, setEditedContent] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isGroupSharedNote, setIsGroupSharedNote] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -65,6 +66,7 @@ const NoteEditor = () => {
         // User owns this note or has direct access
         setNote(directData);
         setEditedContent(directData.content || '');
+        setIsGroupSharedNote(false);
       } else {
         // Check if this note is shared in any groups the user belongs to
         console.log('Direct access failed, checking group access...');
@@ -86,16 +88,28 @@ const NoteEditor = () => {
             id: groupNote.transcription_id,
             title: groupNote.title,
             content: groupNote.content,
-            summary: '', // Group notes view doesn't include summary
+            summary: '', // Group notes view doesn't include summary, we'll fetch it separately
             source_type: groupNote.source_type,
             created_at: groupNote.transcription_created_at,
             duration: groupNote.duration,
             user_id: groupNote.transcription_owner
           };
           
+          // Fetch the summary from the original transcription
+          const { data: originalNote } = await supabase
+            .from('transcriptions')
+            .select('summary')
+            .eq('id', id)
+            .maybeSingle();
+          
+          if (originalNote) {
+            noteData.summary = originalNote.summary || '';
+          }
+          
           console.log('Using group shared note data:', noteData);
           setNote(noteData);
           setEditedContent(noteData.content || '');
+          setIsGroupSharedNote(true);
         } else {
           throw new Error('Note not found or access denied');
         }
@@ -113,7 +127,7 @@ const NoteEditor = () => {
   };
 
   const handleTitleUpdate = async (newTitle: string) => {
-    if (!note) return;
+    if (!note || isGroupSharedNote) return;
 
     try {
       const { error } = await supabase
@@ -178,7 +192,7 @@ const NoteEditor = () => {
   };
 
   const handleContentUpdate = async () => {
-    if (!note) return;
+    if (!note || isGroupSharedNote) return;
 
     try {
       const { error } = await supabase
@@ -206,7 +220,7 @@ const NoteEditor = () => {
   };
 
   const handleDelete = async () => {
-    if (!note) return;
+    if (!note || isGroupSharedNote) return;
 
     try {
       const { error } = await supabase
@@ -276,6 +290,10 @@ const NoteEditor = () => {
 
   // Check if current user is the owner
   const isOwner = note?.user_id === user?.id;
+  // Group members can generate summaries but cannot edit content or delete
+  const canGenerateSummary = isOwner || isGroupSharedNote;
+  const canEditContent = isOwner && !isGroupSharedNote;
+  const canDelete = isOwner && !isGroupSharedNote;
 
   if (loading) {
     return (
@@ -307,7 +325,7 @@ const NoteEditor = () => {
               <span className="text-lg md:text-2xl font-bold text-white">NeuroNotes</span>
             </div>
             <span className="text-slate-400 hidden md:block">/</span>
-            {isOwner ? (
+            {canEditContent ? (
               <EditableTitle
                 title={note.title}
                 onUpdate={handleTitleUpdate}
@@ -316,8 +334,13 @@ const NoteEditor = () => {
             ) : (
               <span className="text-white font-medium text-sm md:text-base">{note.title}</span>
             )}
+            {isGroupSharedNote && (
+              <span className="text-xs text-purple-300 bg-purple-600/20 px-2 py-1 rounded">
+                Shared in Group
+              </span>
+            )}
           </div>
-          {isOwner && (
+          {canEditContent && (
             <div className="flex items-center space-x-2">
               <Button
                 variant="outline"
@@ -327,29 +350,31 @@ const NoteEditor = () => {
               >
                 <Edit2 className="h-4 w-4" />
               </Button>
-              <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-red-500/30 hover:bg-red-500/10 text-red-400"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-slate-900 border-slate-700">
-                  <DialogHeader>
-                    <DialogTitle className="text-white">Delete Note</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <p className="text-slate-300">Are you sure you want to delete this note? This action cannot be undone.</p>
-                    <div className="flex gap-2">
-                      <Button onClick={handleDelete} variant="destructive">Delete</Button>
-                      <Button onClick={() => setShowDeleteDialog(false)} variant="outline">Cancel</Button>
+              {canDelete && (
+                <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-red-500/30 hover:bg-red-500/10 text-red-400"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="bg-slate-900 border-slate-700">
+                    <DialogHeader>
+                      <DialogTitle className="text-white">Delete Note</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <p className="text-slate-300">Are you sure you want to delete this note? This action cannot be undone.</p>
+                      <div className="flex gap-2">
+                        <Button onClick={handleDelete} variant="destructive">Delete</Button>
+                        <Button onClick={() => setShowDeleteDialog(false)} variant="outline">Cancel</Button>
+                      </div>
                     </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                  </DialogContent>
+                </Dialog>
+              )}
             </div>
           )}
         </div>
@@ -366,7 +391,7 @@ const NoteEditor = () => {
               </TabsList>
               
               <TabsContent value="content">
-                {editingContent && isOwner ? (
+                {editingContent && canEditContent ? (
                   <div className="space-y-4">
                     <Textarea
                       value={editedContent}
@@ -394,7 +419,7 @@ const NoteEditor = () => {
                 <div className="bg-white/10 backdrop-blur-md border-white/20 rounded-lg p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-white text-lg font-semibold">Note Summary</h3>
-                    {isOwner && (
+                    {canGenerateSummary && (
                       <div className="flex gap-2">
                         {!note.summary && (
                           <Button
@@ -427,7 +452,7 @@ const NoteEditor = () => {
                   ) : (
                     <div className="bg-white/5 rounded-lg p-4 text-center">
                       <p className="text-slate-400">
-                        {generatingSummary ? 'Generating summary...' : isOwner ? 'No summary available. Click "Generate Summary" to create one.' : 'No summary available.'}
+                        {generatingSummary ? 'Generating summary...' : canGenerateSummary ? 'No summary available. Click "Generate Summary" to create one.' : 'No summary available.'}
                       </p>
                     </div>
                   )}
