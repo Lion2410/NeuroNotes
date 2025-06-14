@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { FileText, Plus, Clock } from 'lucide-react';
+import { FileText, Plus, Clock, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -96,9 +96,13 @@ const AddNotesToGroupDialog: React.FC<AddNotesToGroupDialogProps> = ({
 
     setAdding(true);
     try {
+      console.log('Adding notes to group:', { groupId, selectedCount: selectedTranscriptions.size });
+      
       // Get selected transcriptions
       const selectedTranscriptionIds = Array.from(selectedTranscriptions);
       const selectedItems = userTranscriptions.filter(t => selectedTranscriptionIds.includes(t.id));
+
+      console.log('Selected transcriptions:', selectedItems.map(t => ({ id: t.id, title: t.title })));
 
       // Create notes in the notes table based on selected transcriptions
       const notesToInsert = selectedItems.map(transcription => ({
@@ -109,14 +113,22 @@ const AddNotesToGroupDialog: React.FC<AddNotesToGroupDialogProps> = ({
         is_private: false
       }));
 
-      const { error } = await supabase
-        .from('notes')
-        .insert(notesToInsert);
+      console.log('Notes to insert:', notesToInsert);
 
-      if (error) throw error;
+      const { data, error } = await supabase
+        .from('notes')
+        .insert(notesToInsert)
+        .select();
+
+      if (error) {
+        console.error('Insert error:', error);
+        throw error;
+      }
+
+      console.log('Successfully inserted notes:', data);
 
       toast({
-        title: "Notes Added",
+        title: "Notes Added Successfully",
         description: `Successfully added ${selectedTranscriptionIds.length} note(s) to ${groupName}.`
       });
 
@@ -125,9 +137,18 @@ const AddNotesToGroupDialog: React.FC<AddNotesToGroupDialogProps> = ({
       setSelectedTranscriptions(new Set());
     } catch (error: any) {
       console.error('Error adding notes to group:', error);
+      
+      // Provide more specific error messages
+      let errorMessage = "Failed to add notes to group.";
+      if (error.message?.includes('row-level security')) {
+        errorMessage = "Permission denied. You may not be a member of this group.";
+      } else if (error.message?.includes('foreign key')) {
+        errorMessage = "Invalid group or user reference.";
+      }
+      
       toast({
-        title: "Error",
-        description: "Failed to add notes to group.",
+        title: "Error Adding Notes",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -168,8 +189,9 @@ const AddNotesToGroupDialog: React.FC<AddNotesToGroupDialogProps> = ({
             </div>
           ) : (
             <>
-              <div className="text-sm text-muted-foreground mb-4">
-                Select notes from your dashboard to add to the group.
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <span>Select notes from your dashboard to add to the group.</span>
               </div>
               
               <div className="grid gap-3 max-h-96 overflow-y-auto">
