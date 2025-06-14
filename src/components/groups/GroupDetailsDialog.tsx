@@ -78,15 +78,11 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
     }
   }, [group, isOpen]);
 
-  const getDisplayName = (profile: GroupMember['profile'], userId: string) => {
+  const getDisplayName = (profile: GroupMember['profile']) => {
     if (profile?.first_name || profile?.last_name) {
       return `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
     }
-    if (profile?.email) {
-      return profile.email;
-    }
-    // If no profile data, show a more helpful message
-    return `User ${userId.slice(0, 8)}...`;
+    return profile?.email || 'Unknown User';
   };
 
   const getAvatarFallback = (profile: GroupMember['profile']) => {
@@ -364,7 +360,7 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
               ) : (
                 <div className="grid gap-3">
                   {members.map((member) => {
-                    const displayName = getDisplayName(member.profile, member.user_id);
+                    const displayName = getDisplayName(member.profile);
                     
                     return (
                       <Card key={`${member.user_id}-${member.id}`}>
