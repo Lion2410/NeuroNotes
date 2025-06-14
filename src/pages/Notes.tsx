@@ -9,6 +9,7 @@ import { Search, Plus, FileText, Calendar, Clock, ArrowLeft } from 'lucide-react
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
+import MassDeleteDialog from '@/components/MassDeleteDialog';
 
 interface Transcription {
   id: string;
@@ -73,6 +74,10 @@ const Notes: React.FC = () => {
     navigate(`/transcript/${transcriptionId}`);
   };
 
+  const handleNotesDeleted = () => {
+    queryClient.invalidateQueries({ queryKey: ['user-transcriptions'] });
+  };
+
   const formatDuration = (minutes: number | null) => {
     if (!minutes) return null;
     const hours = Math.floor(minutes / 60);
@@ -82,11 +87,11 @@ const Notes: React.FC = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-purple-900">
         <div className="container mx-auto px-4 py-8">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-red-400 mb-4">Error Loading Notes</h2>
-            <p className="text-slate-300 mb-4">
+            <p className="text-purple-200 mb-4">
               {error instanceof Error ? error.message : 'Failed to load notes'}
             </p>
             <Button 
@@ -102,7 +107,7 @@ const Notes: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-purple-900">
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-4">
@@ -119,29 +124,45 @@ const Notes: React.FC = () => {
           
           <div className="flex justify-between items-center mb-6">
             <div>
-              <h1 className="text-4xl font-bold text-white mb-2">My Notes</h1>
-              <p className="text-slate-300">
-                All your transcriptions and notes in one place
+              <h1 className="text-4xl font-bold text-white mb-2">All Notes</h1>
+              <p className="text-purple-200">
+                View and manage all your transcribed notes
               </p>
             </div>
-            <Button 
-              onClick={handleCreateNote}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Create Note
-            </Button>
+            <div className="flex gap-3">
+              {notes.length > 0 && (
+                <MassDeleteDialog 
+                  notes={notes.map(note => ({
+                    id: note.id,
+                    title: note.title,
+                    content: note.content || '',
+                    created_at: note.created_at,
+                    updated_at: note.updated_at,
+                    source_type: note.source_type,
+                    duration: note.duration
+                  }))}
+                  onNotesDeleted={handleNotesDeleted}
+                />
+              )}
+              <Button 
+                onClick={handleCreateNote}
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Create Note
+              </Button>
+            </div>
           </div>
 
           {/* Search Controls */}
           <div className="flex gap-4 mb-6">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-300 h-4 w-4" />
               <Input
-                placeholder="Search your notes..."
+                placeholder="Search notes..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-slate-400"
+                className="pl-10 bg-purple-800/30 border-purple-600/30 text-white placeholder:text-purple-300 focus:border-purple-500 focus:ring-purple-500"
               />
             </div>
           </div>
@@ -154,11 +175,11 @@ const Notes: React.FC = () => {
           </div>
         ) : notes.length === 0 ? (
           <div className="text-center py-12">
-            <FileText className="h-16 w-16 text-slate-400 mx-auto mb-4" />
+            <FileText className="h-16 w-16 text-purple-300 mx-auto mb-4" />
             <h3 className="text-2xl font-semibold text-white mb-2">
               {searchTerm ? 'No notes found' : 'No notes yet'}
             </h3>
-            <p className="text-slate-300 mb-6">
+            <p className="text-purple-200 mb-6">
               {searchTerm 
                 ? 'Try adjusting your search criteria.'
                 : 'Create your first note by starting a recording or joining a meeting.'
@@ -179,7 +200,7 @@ const Notes: React.FC = () => {
             {notes.map((note) => (
               <Card 
                 key={note.id} 
-                className="bg-white/10 backdrop-blur-md border-white/20 cursor-pointer hover:bg-white/20 transition-all duration-200"
+                className="bg-purple-800/40 backdrop-blur-md border-purple-600/30 cursor-pointer hover:bg-purple-700/50 transition-all duration-200"
                 onClick={() => handleNoteClick(note.id)}
               >
                 <CardHeader className="pb-3">
@@ -187,19 +208,19 @@ const Notes: React.FC = () => {
                     <CardTitle className="text-white text-lg line-clamp-2">
                       {note.title}
                     </CardTitle>
-                    <Badge variant="secondary" className="text-xs ml-2">
+                    <Badge variant="secondary" className="text-xs ml-2 bg-purple-600 text-purple-100">
                       {note.source_type}
                     </Badge>
                   </div>
                   
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-slate-300">
+                    <div className="flex items-center gap-2 text-sm text-purple-200">
                       <Calendar className="h-3 w-3" />
-                      <span>Created {new Date(note.created_at).toLocaleDateString()}</span>
+                      <span>{new Date(note.created_at).toLocaleDateString()}</span>
                     </div>
                     
                     {note.duration && (
-                      <div className="flex items-center gap-2 text-sm text-slate-300">
+                      <div className="flex items-center gap-2 text-sm text-purple-200">
                         <Clock className="h-3 w-3" />
                         <span>{formatDuration(note.duration)}</span>
                       </div>
@@ -209,7 +230,7 @@ const Notes: React.FC = () => {
                 
                 {(note.content || note.summary) && (
                   <CardContent className="pt-0">
-                    <p className="text-slate-300 text-sm line-clamp-3">
+                    <p className="text-purple-100 text-sm line-clamp-3">
                       {note.summary || (note.content && note.content.substring(0, 150) + '...')}
                     </p>
                   </CardContent>
