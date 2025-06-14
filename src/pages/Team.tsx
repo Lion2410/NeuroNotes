@@ -13,22 +13,23 @@ import TeamMembersList from '@/components/team/TeamMembersList';
 import InviteDialog from '@/components/team/InviteDialog';
 import JoinTeamTab from '@/components/team/JoinTeamTab';
 
-interface TeamMember {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  status: string;
-  created_at: string;
+interface GroupMember {
+  id: number;
   user_id: string;
-  team_id: string;
+  group_id: number;
+  is_admin: boolean;
+  joined_at: string;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  avatar_url?: string;
 }
 
 const Team = () => {
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamMembers, setTeamMembers] = useState<GroupMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
-  const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
+  const [editingMember, setEditingMember] = useState<GroupMember | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [joinTeamUrl, setJoinTeamUrl] = useState('');
   const [currentTeamId, setCurrentTeamId] = useState<string>('');
@@ -48,26 +49,41 @@ const Team = () => {
 
   const fetchTeamMembers = async () => {
     try {
-      console.log('Fetching team members for user:', user?.id);
+      console.log('Fetching group members for user:', user?.id);
       
-      const { data, error } = await supabase
-        .from('team_members')
+      // First, get the user's groups to find a group to display
+      const { data: userGroups, error: groupsError } = await supabase
+        .from('user_groups_with_stats')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
+      if (groupsError) {
+        console.error('Error fetching user groups:', groupsError);
+        throw groupsError;
       }
-      
-      console.log('Fetched team members:', data);
-      
-      if (data && data.length > 0) {
-        setTeamMembers(data);
-        setCurrentTeamId(data[0].team_id);
+
+      if (userGroups && userGroups.length > 0) {
+        const firstGroup = userGroups[0];
+        setCurrentTeamId(firstGroup.group_id?.toString() || '');
+        
+        // Now fetch members for this group
+        const { data: members, error: membersError } = await supabase
+          .from('group_members_with_profiles')
+          .select('*')
+          .eq('group_id', firstGroup.group_id)
+          .order('joined_at', { ascending: false });
+
+        if (membersError) {
+          console.error('Error fetching group members:', membersError);
+          throw membersError;
+        }
+
+        console.log('Fetched group members:', members);
+        setTeamMembers(members || []);
       } else {
-        // Create initial team member entry for the current user
-        await createInitialTeamMember();
+        // Create initial group for the current user
+        await createInitialGroup();
       }
     } catch (error: any) {
       console.error('Error fetching team members:', error);
@@ -81,40 +97,51 @@ const Team = () => {
     }
   };
 
-  const createInitialTeamMember = async () => {
+  const createInitialGroup = async () => {
     if (!user) return;
     
     try {
-      console.log('Creating initial team member for user:', user.id);
+      console.log('Creating initial group for user:', user.id);
       
-      const { data, error } = await supabase
-        .from('team_members')
+      // Create a default group for the user
+      const { data: group, error: groupError } = await supabase
+        .from('groups')
         .insert({
-          user_id: user.id,
-          name: `${user.user_metadata.first_name || ''} ${user.user_metadata.last_name || ''}`.trim() || 'Anonymous',
-          email: user.email || '',
-          role: 'Owner',
-          status: 'active'
+          creator_id: user.id,
+          name: 'My Team'
         })
         .select()
         .single();
 
-      if (error) {
-        console.error('Error creating initial team member:', error);
-        throw error;
+      if (groupError) {
+        console.error('Error creating initial group:', groupError);
+        throw groupError;
       }
       
-      console.log('Created initial team member:', data);
+      console.log('Created initial group:', group);
       
-      if (data) {
-        setTeamMembers([data]);
-        setCurrentTeamId(data.team_id);
+      if (group) {
+        setCurrentTeamId(group.id.toString());
+        
+        // The group creator is automatically added as a member via the database trigger
+        // Fetch the updated members list
+        const { data: members, error: membersError } = await supabase
+          .from('group_members_with_profiles')
+          .select('*')
+          .eq('group_id', group.id)
+          .order('joined_at', { ascending: false });
+
+        if (membersError) {
+          console.error('Error fetching new group members:', membersError);
+        } else {
+          setTeamMembers(members || []);
+        }
       }
     } catch (error: any) {
-      console.error('Error creating initial team member:', error);
+      console.error('Error creating initial group:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to create team member.",
+        description: error.message || "Failed to create team.",
         variant: "destructive"
       });
     }
@@ -128,21 +155,17 @@ const Team = () => {
     });
   };
 
-  const editMember = (member: TeamMember) => {
+  const editMember = (member: GroupMember) => {
     setEditingMember(member);
     setEditDialogOpen(true);
   };
 
-  const handleSaveMember = async (updatedMember: TeamMember) => {
+  const handleSaveMember = async (updatedMember: GroupMember) => {
     try {
       const { error } = await supabase
-        .from('team_members')
+        .from('group_members')
         .update({
-          name: updatedMember.name,
-          email: updatedMember.email,
-          role: updatedMember.role,
-          status: updatedMember.status,
-          updated_at: new Date().toISOString()
+          is_admin: updatedMember.is_admin
         })
         .eq('id', updatedMember.id);
 
@@ -151,7 +174,7 @@ const Team = () => {
       // Update local state
       setTeamMembers(prev => 
         prev.map(member => 
-          member.id === updatedMember.id ? { ...member, ...updatedMember } : member
+          member.id === updatedMember.id ? { ...member, is_admin: updatedMember.is_admin } : member
         )
       );
 
@@ -160,7 +183,7 @@ const Team = () => {
         description: "Team member updated successfully."
       });
     } catch (error: any) {
-      console.error('Error updating team member:', error);
+      console.error('Error updating group member:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to update team member.",
@@ -172,10 +195,10 @@ const Team = () => {
     setEditingMember(null);
   };
 
-  const deleteMember = async (memberId: string) => {
+  const deleteMember = async (memberId: number) => {
     try {
       const { error } = await supabase
-        .from('team_members')
+        .from('group_members')
         .delete()
         .eq('id', memberId);
 
@@ -188,7 +211,7 @@ const Team = () => {
         description: "Team member has been removed successfully."
       });
     } catch (error: any) {
-      console.error('Error deleting team member:', error);
+      console.error('Error deleting group member:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to remove team member.",
