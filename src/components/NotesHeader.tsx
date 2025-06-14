@@ -32,8 +32,12 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
             </Button>
             
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gradient-to-r from-green-400 to-teal-500 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">N</span>
+              <div className="w-8 h-8 flex items-center justify-center">
+                <img 
+                  src="/lovable-uploads/a5a042c4-e054-4df2-b3b5-8ae8386c5f2b.png" 
+                  alt="NeuroNotes Logo" 
+                  className="w-8 h-8 object-contain"
+                />
               </div>
               <div className="flex items-center gap-2 text-white">
                 <span className="text-xl font-semibold">NeuroNotes</span>
