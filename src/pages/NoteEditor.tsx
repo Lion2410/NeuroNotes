@@ -44,10 +44,13 @@ const NoteEditor = () => {
 
   const fetchNote = async () => {
     try {
-      console.log('Fetching note with ID:', id);
+      console.log('=== FETCHING NOTE ===');
+      console.log('Note ID:', id);
       console.log('Current user ID:', user?.id);
+      console.log('User object:', user);
       
       // First, try to fetch the note directly
+      console.log('Step 1: Attempting direct note access...');
       const { data: directData, error: directError } = await supabase
         .from('transcriptions')
         .select('*')
@@ -59,69 +62,99 @@ const NoteEditor = () => {
 
       if (directError) {
         console.error('Error in direct note query:', directError);
-        throw directError;
+        throw new Error(`Direct query failed: ${directError.message}`);
       }
 
       if (directData) {
-        // User owns this note or has direct access
+        console.log('✅ Direct access successful - user owns this note');
         setNote(directData);
         setEditedContent(directData.content || '');
         setIsGroupSharedNote(false);
+        console.log('Note loaded successfully via direct access');
       } else {
+        console.log('Step 2: Direct access failed, checking group access...');
+        
         // Check if this note is shared in any groups the user belongs to
-        console.log('Direct access failed, checking group access...');
         const { data: groupNotes, error: groupError } = await supabase
           .from('group_notes_with_details')
           .select('*')
           .eq('transcription_id', id);
         
-        console.log('Group notes for this note:', groupNotes);
+        console.log('Group notes query result:', groupNotes);
+        console.log('Group notes query error:', groupError);
+        
         if (groupError) {
-          console.log('Group notes error:', groupError);
-          throw groupError;
+          console.error('Group notes query error:', groupError);
+          throw new Error(`Group access query failed: ${groupError.message}`);
         }
 
         if (groupNotes && groupNotes.length > 0) {
+          console.log('✅ Group access found - reconstructing note data...');
+          
           // Use the first group note (they should all have the same note data)
           const groupNote = groupNotes[0];
+          console.log('Using group note data:', groupNote);
+          
           const noteData: Transcription = {
             id: groupNote.transcription_id,
             title: groupNote.title,
             content: groupNote.content,
-            summary: '', // Group notes view doesn't include summary, we'll fetch it separately
+            summary: '', // Will be fetched separately
             source_type: groupNote.source_type,
             created_at: groupNote.transcription_created_at,
             duration: groupNote.duration,
             user_id: groupNote.transcription_owner
           };
           
+          console.log('Step 3: Fetching summary from original transcription...');
           // Fetch the summary from the original transcription
-          const { data: originalNote } = await supabase
-            .from('transcriptions')
-            .select('summary')
-            .eq('id', id)
-            .maybeSingle();
-          
-          if (originalNote) {
-            noteData.summary = originalNote.summary || '';
+          try {
+            const { data: originalNote, error: summaryError } = await supabase
+              .from('transcriptions')
+              .select('summary')
+              .eq('id', id)
+              .maybeSingle();
+            
+            console.log('Summary fetch result:', originalNote);
+            console.log('Summary fetch error:', summaryError);
+            
+            if (summaryError) {
+              console.warn('Could not fetch summary:', summaryError);
+              // Don't fail the entire operation if summary fetch fails
+            } else if (originalNote) {
+              noteData.summary = originalNote.summary || '';
+              console.log('Summary fetched successfully:', originalNote.summary ? 'Has summary' : 'No summary');
+            } else {
+              console.log('No summary data found');
+            }
+          } catch (summaryFetchError) {
+            console.warn('Summary fetch failed, continuing without summary:', summaryFetchError);
+            // Continue without summary rather than failing
           }
           
-          console.log('Using group shared note data:', noteData);
+          console.log('Final note data:', noteData);
           setNote(noteData);
           setEditedContent(noteData.content || '');
           setIsGroupSharedNote(true);
+          console.log('✅ Note loaded successfully via group access');
         } else {
-          throw new Error('Note not found or access denied');
+          console.log('❌ No group access found');
+          throw new Error('Note not found or access denied - no direct access and no group sharing found');
         }
       }
     } catch (error) {
-      console.error('Error fetching note:', error);
+      console.error('=== NOTE FETCH ERROR ===');
+      console.error('Error type:', typeof error);
+      console.error('Error message:', error instanceof Error ? error.message : String(error));
+      console.error('Full error object:', error);
+      
       toast({
         title: "Error",
-        description: "Failed to load note.",
+        description: `Failed to load note: ${error instanceof Error ? error.message : 'Unknown error'}`,
         variant: "destructive"
       });
     } finally {
+      console.log('=== FETCH COMPLETE ===');
       setLoading(false);
     }
   };
@@ -294,6 +327,13 @@ const NoteEditor = () => {
   const canGenerateSummary = isOwner || isGroupSharedNote;
   const canEditContent = isOwner && !isGroupSharedNote;
   const canDelete = isOwner && !isGroupSharedNote;
+
+  console.log('=== RENDER STATE ===');
+  console.log('Loading:', loading);
+  console.log('Note exists:', !!note);
+  console.log('Is group shared:', isGroupSharedNote);
+  console.log('Is owner:', isOwner);
+  console.log('Can generate summary:', canGenerateSummary);
 
   if (loading) {
     return (
