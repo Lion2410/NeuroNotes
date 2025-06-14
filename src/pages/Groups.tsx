@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, UserPlus, Users } from 'lucide-react';
@@ -39,23 +40,10 @@ const Groups = () => {
     try {
       console.log('Fetching groups for user:', user?.id);
       
-      // With RLS disabled, we can fetch all groups and filter appropriately
-      const { data: allGroups, error: groupsError } = await supabase
-        .from('groups')
-        .select('id, name, creator_id, created_at')
-        .order('created_at', { ascending: false });
-
-      if (groupsError) {
-        console.error('Error fetching groups:', groupsError);
-        throw groupsError;
-      }
-
-      console.log('Fetched groups:', allGroups);
-
-      // Get user's memberships to determine admin status and member counts
+      // First get user's memberships to know which groups they're in
       const { data: membershipData, error: membershipError } = await supabase
         .from('group_members')
-        .select('group_id, is_admin, user_id')
+        .select('group_id, is_admin')
         .eq('user_id', user?.id);
 
       if (membershipError) {
@@ -65,16 +53,32 @@ const Groups = () => {
 
       console.log('User memberships:', membershipData);
 
-      // Filter groups to only show ones where user is creator or member
-      const userGroupIds = membershipData?.map(m => m.group_id) || [];
-      const createdGroupIds = allGroups?.filter(g => g.creator_id === user?.id).map(g => g.id) || [];
-      const accessibleGroupIds = [...new Set([...userGroupIds, ...createdGroupIds])];
+      if (!membershipData || membershipData.length === 0) {
+        console.log('User has no group memberships');
+        setGroups([]);
+        return;
+      }
+
+      // Get the group IDs where user is a member
+      const userGroupIds = membershipData.map(m => m.group_id);
       
-      const accessibleGroups = allGroups?.filter(g => accessibleGroupIds.includes(g.id)) || [];
+      // Fetch only the groups where the user is a member
+      const { data: userGroups, error: groupsError } = await supabase
+        .from('groups')
+        .select('id, name, creator_id, created_at')
+        .in('id', userGroupIds)
+        .order('created_at', { ascending: false });
+
+      if (groupsError) {
+        console.error('Error fetching groups:', groupsError);
+        throw groupsError;
+      }
+
+      console.log('Fetched user groups:', userGroups);
 
       // Process the groups to add member counts and admin status
       const processedGroups = await Promise.all(
-        accessibleGroups.map(async (group: any) => {
+        (userGroups || []).map(async (group: any) => {
           // Get member count for this group
           const { count } = await supabase
             .from('group_members')
@@ -82,9 +86,8 @@ const Groups = () => {
             .eq('group_id', group.id);
 
           // Check if user is admin
-          const isCreator = group.creator_id === user?.id;
-          const membership = membershipData?.find(m => m.group_id === group.id);
-          const isAdmin = isCreator || (membership?.is_admin || false);
+          const membership = membershipData.find(m => m.group_id === group.id);
+          const isAdmin = membership?.is_admin || false;
 
           return {
             id: group.id,
