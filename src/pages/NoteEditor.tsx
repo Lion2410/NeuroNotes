@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Edit2, Trash2 } from 'lucide-react';
+import { ArrowLeft, Edit2, Trash2, RotateCcw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -338,15 +337,28 @@ const NoteEditor = () => {
                 <div className="bg-white/10 backdrop-blur-md border-white/20 rounded-lg p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-white text-lg font-semibold">Note Summary</h3>
-                    {!note.summary && (
-                      <Button
-                        onClick={generateSummary}
-                        disabled={generatingSummary}
-                        className="bg-purple-600 hover:bg-purple-700"
-                      >
-                        {generatingSummary ? 'Generating...' : 'Generate Summary'}
-                      </Button>
-                    )}
+                    <div className="flex gap-2">
+                      {!note.summary && (
+                        <Button
+                          onClick={generateSummary}
+                          disabled={generatingSummary}
+                          className="bg-purple-600 hover:bg-purple-700"
+                        >
+                          {generatingSummary ? 'Generating...' : 'Generate Summary'}
+                        </Button>
+                      )}
+                      {note.summary && (
+                        <Button
+                          onClick={generateSummary}
+                          disabled={generatingSummary}
+                          variant="outline"
+                          className="border-white/30 hover:bg-white/10 text-slate-950"
+                        >
+                          <RotateCcw className="h-4 w-4 mr-2" />
+                          {generatingSummary ? 'Re-generating...' : 'Re-summarize'}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   
                   {note.summary ? (

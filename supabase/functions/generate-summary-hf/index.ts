@@ -30,58 +30,59 @@ serve(async (req) => {
     console.log('Initializing Hugging Face client...');
     const hf = new HfInference(hfToken);
 
-    // Try multiple models in order of preference
-    const models = [
-      'microsoft/DialoGPT-medium',
-      'sshleifer/distilbart-cnn-12-6',
-      'facebook/bart-large-cnn'
-    ];
-
     let summary;
     let lastError;
 
-    for (const model of models) {
-      try {
-        console.log(`Trying summarization with model: ${model}`);
-        
-        const response = await hf.textGeneration({
-          model: model,
-          inputs: `Summarize the following text in a concise manner:\n\n${content}\n\nSummary:`,
-          parameters: {
-            max_new_tokens: 150,
-            temperature: 0.7,
-            do_sample: false,
-          },
-        });
+    // Try original summarization model first (fastest option)
+    try {
+      console.log('Trying original summarization model: sshleifer/distilbart-cnn-12-6');
+      const response = await hf.summarization({
+        model: 'sshleifer/distilbart-cnn-12-6',
+        inputs: content,
+        parameters: {
+          max_length: 150,
+          min_length: 30,
+          do_sample: false,
+        },
+      });
+      summary = response.summary_text;
+    } catch (originalError) {
+      console.log('Original summarization model failed:', originalError.message);
+      lastError = originalError;
 
-        console.log('Summarization response:', response);
-        summary = response.generated_text.replace(`Summarize the following text in a concise manner:\n\n${content}\n\nSummary:`, '').trim();
-        break;
-      } catch (modelError) {
-        console.log(`Model ${model} failed:`, modelError.message);
-        lastError = modelError;
-        continue;
+      // Fallback to text generation models
+      const textGenModels = [
+        'microsoft/DialoGPT-medium',
+        'facebook/bart-large-cnn'
+      ];
+
+      for (const model of textGenModels) {
+        try {
+          console.log(`Trying text generation with model: ${model}`);
+          
+          const response = await hf.textGeneration({
+            model: model,
+            inputs: `Summarize the following text in a concise manner:\n\n${content}\n\nSummary:`,
+            parameters: {
+              max_new_tokens: 150,
+              temperature: 0.7,
+              do_sample: false,
+            },
+          });
+
+          console.log('Text generation response:', response);
+          summary = response.generated_text.replace(`Summarize the following text in a concise manner:\n\n${content}\n\nSummary:`, '').trim();
+          break;
+        } catch (modelError) {
+          console.log(`Model ${model} failed:`, modelError.message);
+          lastError = modelError;
+          continue;
+        }
       }
     }
 
-    // If all models failed, try the original summarization approach as fallback
     if (!summary) {
-      try {
-        console.log('Trying original summarization model as fallback...');
-        const response = await hf.summarization({
-          model: 'sshleifer/distilbart-cnn-12-6',
-          inputs: content,
-          parameters: {
-            max_length: 150,
-            min_length: 30,
-            do_sample: false,
-          },
-        });
-        summary = response.summary_text;
-      } catch (fallbackError) {
-        console.log('Fallback also failed:', fallbackError.message);
-        throw lastError || fallbackError;
-      }
+      throw lastError || new Error('All summarization models failed');
     }
 
     return new Response(JSON.stringify({ summary }), {

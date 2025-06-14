@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import MassDeleteDialog from '@/components/MassDeleteDialog';
 
 interface Note {
   id: string;
@@ -132,7 +133,12 @@ const Notes = () => {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-4">All Notes</h1>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-4xl font-bold text-white">All Notes</h1>
+            {notes.length > 0 && (
+              <MassDeleteDialog notes={notes} onNotesDeleted={fetchNotes} />
+            )}
+          </div>
           <p className="text-xl text-slate-300">View and manage all your transcribed notes</p>
         </div>
 
