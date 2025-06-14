@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, FileText, Calendar, Clock, ArrowLeft } from 'lucide-react';
+import { Search, Plus, FileText, Calendar, Clock } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import MassDeleteDialog from '@/components/MassDeleteDialog';
+import NotesHeader from '@/components/NotesHeader';
 
 interface Transcription {
   id: string;
@@ -87,7 +88,8 @@ const Notes: React.FC = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-purple-900">
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900">
+        <NotesHeader onBack={handleBack} onCreateNote={handleCreateNote} />
         <div className="container mx-auto px-4 py-8">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-red-400 mb-4">Error Loading Notes</h2>
@@ -107,54 +109,39 @@ const Notes: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-purple-900">
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900">
+      <NotesHeader 
+        onBack={handleBack} 
+        onCreateNote={handleCreateNote}
+        showMassDelete={notes.length > 0}
+        massDeleteComponent={
+          notes.length > 0 ? (
+            <MassDeleteDialog 
+              notes={notes.map(note => ({
+                id: note.id,
+                title: note.title,
+                content: note.content || '',
+                created_at: note.created_at,
+                updated_at: note.updated_at,
+                source_type: note.source_type,
+                duration: note.duration
+              }))}
+              onNotesDeleted={handleNotesDeleted}
+            />
+          ) : null
+        }
+      />
+
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
-          <div className="flex items-center gap-4 mb-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleBack}
-              className="text-white hover:bg-white/10"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Dashboard
-            </Button>
-          </div>
-          
-          <div className="flex justify-between items-center mb-6">
-            <div>
-              <h1 className="text-4xl font-bold text-white mb-2">All Notes</h1>
-              <p className="text-purple-200">
-                View and manage all your transcribed notes
-              </p>
-            </div>
-            <div className="flex gap-3">
-              {notes.length > 0 && (
-                <MassDeleteDialog 
-                  notes={notes.map(note => ({
-                    id: note.id,
-                    title: note.title,
-                    content: note.content || '',
-                    created_at: note.created_at,
-                    updated_at: note.updated_at,
-                    source_type: note.source_type,
-                    duration: note.duration
-                  }))}
-                  onNotesDeleted={handleNotesDeleted}
-                />
-              )}
-              <Button 
-                onClick={handleCreateNote}
-                className="bg-purple-600 hover:bg-purple-700 text-white"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Create Note
-              </Button>
-            </div>
+          <div className="mb-6">
+            <h2 className="text-3xl font-bold text-white mb-2">All Notes</h2>
+            <p className="text-purple-200">
+              View and manage all your transcribed notes
+            </p>
           </div>
 
-          {/* Search Controls */}
+          {/* Enhanced Search Controls */}
           <div className="flex gap-4 mb-6">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-300 h-4 w-4" />
@@ -162,7 +149,7 @@ const Notes: React.FC = () => {
                 placeholder="Search notes..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-purple-800/30 border-purple-600/30 text-white placeholder:text-purple-300 focus:border-purple-500 focus:ring-purple-500"
+                className="pl-10 bg-purple-800/50 backdrop-blur-sm border-purple-600/50 text-white placeholder:text-purple-300 focus:border-purple-400 focus:ring-purple-400 shadow-lg"
               />
             </div>
           </div>
@@ -200,7 +187,7 @@ const Notes: React.FC = () => {
             {notes.map((note) => (
               <Card 
                 key={note.id} 
-                className="bg-purple-800/40 backdrop-blur-md border-purple-600/30 cursor-pointer hover:bg-purple-700/50 transition-all duration-200"
+                className="bg-purple-800/60 backdrop-blur-md border-purple-600/50 cursor-pointer hover:bg-purple-700/60 transition-all duration-200 shadow-xl hover:shadow-2xl hover:shadow-purple-500/20"
                 onClick={() => handleNoteClick(note.id)}
               >
                 <CardHeader className="pb-3">
@@ -208,7 +195,7 @@ const Notes: React.FC = () => {
                     <CardTitle className="text-white text-lg line-clamp-2">
                       {note.title}
                     </CardTitle>
-                    <Badge variant="secondary" className="text-xs ml-2 bg-purple-600 text-purple-100">
+                    <Badge variant="secondary" className="text-xs ml-2 bg-purple-600/80 text-purple-100 border-purple-500/50">
                       {note.source_type}
                     </Badge>
                   </div>
