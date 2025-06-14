@@ -1,10 +1,11 @@
-
 import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Users, FileText, UserPlus, Settings, Copy, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -61,6 +62,8 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [generatingInvite, setGeneratingInvite] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -68,9 +71,6 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
     if (group && isOpen) {
       fetchMembers();
       fetchNotes();
-      if (group.is_admin) {
-        generateInviteLink();
-      }
     }
   }, [group, isOpen]);
 
@@ -167,6 +167,7 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
   const generateInviteLink = async () => {
     if (!group || !user) return;
 
+    setGeneratingInvite(true);
     try {
       // Generate a unique invite token
       const inviteToken = `${group.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -186,6 +187,7 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
       const baseUrl = window.location.origin;
       const link = `${baseUrl}/join-group?invite=${inviteToken}`;
       setInviteLink(link);
+      setShowInviteDialog(true);
     } catch (error: any) {
       console.error('Error generating invite link:', error);
       toast({
@@ -193,6 +195,8 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
         description: "Failed to generate invite link.",
         variant: "destructive"
       });
+    } finally {
+      setGeneratingInvite(false);
     }
   };
 
@@ -216,204 +220,259 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
     }
   };
 
+  const handleInviteMembers = () => {
+    if (!inviteLink) {
+      generateInviteLink();
+    } else {
+      setShowInviteDialog(true);
+    }
+  };
+
   if (!group) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            {group.name}
-            {group.is_admin && (
-              <Badge variant="secondary" className="ml-2">
-                Admin
-              </Badge>
-            )}
-          </DialogTitle>
-        </DialogHeader>
-
-        <Tabs defaultValue="members" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="members">
-              <Users className="h-4 w-4 mr-2" />
-              Members ({members.length})
-            </TabsTrigger>
-            <TabsTrigger value="notes">
-              <FileText className="h-4 w-4 mr-2" />
-              Notes ({notes.length})
-            </TabsTrigger>
-            {group.is_admin && (
-              <TabsTrigger value="settings">
-                <Settings className="h-4 w-4 mr-2" />
-                Settings
-              </TabsTrigger>
-            )}
-          </TabsList>
-
-          <TabsContent value="members" className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-medium">Group Members</h3>
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              {group.name}
               {group.is_admin && (
-                <Button size="sm" onClick={generateInviteLink}>
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Invite Members
-                </Button>
+                <Badge variant="secondary" className="ml-2">
+                  Admin
+                </Badge>
               )}
-            </div>
+            </DialogTitle>
+          </DialogHeader>
 
-            {loadingMembers ? (
-              <div className="text-center py-8">Loading members...</div>
-            ) : (
-              <div className="grid gap-3">
-                {members.map((member) => (
-                  <Card key={member.id}>
-                    <CardContent className="p-4">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <p className="font-medium">
-                            {member.profile?.first_name || member.profile?.last_name
-                              ? `${member.profile.first_name || ''} ${member.profile.last_name || ''}`.trim()
-                              : member.profile?.email || 'Unknown User'}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {member.profile?.email}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Joined {new Date(member.joined_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {member.is_admin && (
-                            <Badge variant="outline">Admin</Badge>
-                          )}
-                          {member.user_id === group.creator_id && (
-                            <Badge>Creator</Badge>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="notes" className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-medium">Group Notes</h3>
-              <Button size="sm">
+          <Tabs defaultValue="members" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="members">
+                <Users className="h-4 w-4 mr-2" />
+                Members ({members.length})
+              </TabsTrigger>
+              <TabsTrigger value="notes">
                 <FileText className="h-4 w-4 mr-2" />
-                Create Note
-              </Button>
-            </div>
+                Notes ({notes.length})
+              </TabsTrigger>
+              {group.is_admin && (
+                <TabsTrigger value="settings">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Settings
+                </TabsTrigger>
+              )}
+            </TabsList>
 
-            {loadingNotes ? (
-              <div className="text-center py-8">Loading notes...</div>
-            ) : notes.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No notes yet. Create the first note for this group!
+            <TabsContent value="members" className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-medium">Group Members</h3>
+                {group.is_admin && (
+                  <Button 
+                    size="sm" 
+                    onClick={handleInviteMembers}
+                    disabled={generatingInvite}
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    {generatingInvite ? 'Generating...' : 'Invite Members'}
+                  </Button>
+                )}
               </div>
-            ) : (
-              <div className="grid gap-3">
-                {notes.map((note) => (
-                  <Card key={note.id}>
-                    <CardHeader className="pb-3">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <CardTitle className="text-base">{note.title}</CardTitle>
-                          <CardDescription>
-                            By {note.profile?.first_name || note.profile?.last_name
-                              ? `${note.profile.first_name || ''} ${note.profile.last_name || ''}`.trim()
-                              : 'Unknown User'} • {new Date(note.created_at).toLocaleDateString()}
-                          </CardDescription>
+
+              {loadingMembers ? (
+                <div className="text-center py-8">Loading members...</div>
+              ) : (
+                <div className="grid gap-3">
+                  {members.map((member) => (
+                    <Card key={member.id}>
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="font-medium">
+                              {member.profile?.first_name || member.profile?.last_name
+                                ? `${member.profile.first_name || ''} ${member.profile.last_name || ''}`.trim()
+                                : member.profile?.email || 'Unknown User'}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {member.profile?.email}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Joined {new Date(member.joined_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {member.is_admin && (
+                              <Badge variant="outline">Admin</Badge>
+                            )}
+                            {member.user_id === group.creator_id && (
+                              <Badge>Creator</Badge>
+                            )}
+                          </div>
                         </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="notes" className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-medium">Group Notes</h3>
+                <Button size="sm">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Create Note
+                </Button>
+              </div>
+
+              {loadingNotes ? (
+                <div className="text-center py-8">Loading notes...</div>
+              ) : notes.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  No notes yet. Create the first note for this group!
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {notes.map((note) => (
+                    <Card key={note.id}>
+                      <CardHeader className="pb-3">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle className="text-base">{note.title}</CardTitle>
+                            <CardDescription>
+                              By {note.profile?.first_name || note.profile?.last_name
+                                ? `${note.profile.first_name || ''} ${note.profile.last_name || ''}`.trim()
+                                : 'Unknown User'} • {new Date(note.created_at).toLocaleDateString()}
+                            </CardDescription>
+                          </div>
+                          <div className="flex gap-2">
+                            {note.is_private && (
+                              <Badge variant="outline" className="text-xs">
+                                Private
+                              </Badge>
+                            )}
+                            {note.user_id === user?.id && (
+                              <Badge variant="secondary" className="text-xs">
+                                Your Note
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </CardHeader>
+                      {note.content && (
+                        <CardContent className="pt-0">
+                          <p className="text-sm text-muted-foreground line-clamp-3">
+                            {note.content}
+                          </p>
+                        </CardContent>
+                      )}
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            {group.is_admin && (
+              <TabsContent value="settings" className="space-y-4">
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-medium mb-3">Invite Link</h3>
+                    <Card>
+                      <CardContent className="p-4">
                         <div className="flex gap-2">
-                          {note.is_private && (
-                            <Badge variant="outline" className="text-xs">
-                              Private
-                            </Badge>
-                          )}
-                          {note.user_id === user?.id && (
-                            <Badge variant="secondary" className="text-xs">
-                              Your Note
-                            </Badge>
-                          )}
+                          <div className="flex-1 p-2 bg-muted rounded text-sm font-mono">
+                            {inviteLink || 'Generating invite link...'}
+                          </div>
+                          <Button 
+                            size="sm" 
+                            onClick={copyInviteLink}
+                            disabled={!inviteLink}
+                          >
+                            {copiedInvite ? (
+                              <Check className="h-4 w-4" />
+                            ) : (
+                              <Copy className="h-4 w-4" />
+                            )}
+                          </Button>
                         </div>
-                      </div>
-                    </CardHeader>
-                    {note.content && (
-                      <CardContent className="pt-0">
-                        <p className="text-sm text-muted-foreground line-clamp-3">
-                          {note.content}
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Share this link to invite new members to your group.
                         </p>
                       </CardContent>
-                    )}
-                  </Card>
-                ))}
-              </div>
+                    </Card>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-medium mb-3">Group Settings</h3>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="space-y-4">
+                          <div>
+                            <label className="text-sm font-medium">Group Name</label>
+                            <p className="text-sm text-muted-foreground">{group.name}</p>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium">Created</label>
+                            <p className="text-sm text-muted-foreground">
+                              {new Date(group.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium">Total Members</label>
+                            <p className="text-sm text-muted-foreground">{members.length}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              </TabsContent>
             )}
-          </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
 
-          {group.is_admin && (
-            <TabsContent value="settings" className="space-y-4">
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-medium mb-3">Invite Link</h3>
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="flex gap-2">
-                        <div className="flex-1 p-2 bg-muted rounded text-sm font-mono">
-                          {inviteLink || 'Generating invite link...'}
-                        </div>
-                        <Button 
-                          size="sm" 
-                          onClick={copyInviteLink}
-                          disabled={!inviteLink}
-                        >
-                          {copiedInvite ? (
-                            <Check className="h-4 w-4" />
-                          ) : (
-                            <Copy className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Share this link to invite new members to your group.
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-medium mb-3">Group Settings</h3>
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="space-y-4">
-                        <div>
-                          <label className="text-sm font-medium">Group Name</label>
-                          <p className="text-sm text-muted-foreground">{group.name}</p>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Created</label>
-                          <p className="text-sm text-muted-foreground">
-                            {new Date(group.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div>
-                          <label className="text-sm font-medium">Total Members</label>
-                          <p className="text-sm text-muted-foreground">{members.length}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
+      {/* Invite Link Dialog */}
+      <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Invite Members to {group?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="invite-link">Shareable Invite Link</Label>
+              <div className="flex gap-2 mt-2">
+                <Input
+                  id="invite-link"
+                  value={inviteLink}
+                  readOnly
+                  className="font-mono text-sm"
+                />
+                <Button 
+                  size="sm"
+                  onClick={copyInviteLink}
+                  disabled={!inviteLink}
+                >
+                  {copiedInvite ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
               </div>
-            </TabsContent>
-          )}
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+              <p className="text-sm text-muted-foreground mt-2">
+                Share this link with anyone you want to invite to your group. They can paste it in the "Join Group" tab.
+              </p>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={() => setShowInviteDialog(false)}>
+                Done
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 
