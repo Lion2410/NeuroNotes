@@ -221,6 +221,10 @@ const Groups = () => {
     }
   };
 
+  const handleOpenCreateDialog = () => {
+    setCreateDialogOpen(true);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black flex items-center justify-center">
@@ -246,7 +250,7 @@ const Groups = () => {
             <span className="text-white font-medium">Groups</span>
           </div>
           <Button 
-            onClick={() => setCreateDialogOpen(true)}
+            onClick={handleOpenCreateDialog}
             className="bg-purple-600 hover:bg-purple-700 text-white"
           >
             <UserPlus className="h-4 w-4 mr-2" />
@@ -273,7 +277,7 @@ const Groups = () => {
           </TabsList>
 
           <TabsContent value="groups" className="space-y-8">
-            <GroupsList groups={groups} onRefresh={fetchGroups} />
+            <GroupsList groups={groups} onRefresh={fetchGroups} onCreateGroup={handleOpenCreateDialog} />
           </TabsContent>
 
           <TabsContent value="join" className="space-y-8">
