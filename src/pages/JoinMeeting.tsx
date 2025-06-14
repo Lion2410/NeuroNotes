@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Upload, Play, Save, Mic, MicOff, Square, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Upload, Play, Save, Mic, MicOff, Square, CheckCircle, XCircle, AlertCircle, Headphones } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +10,17 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import VirtualAudioSetup from '@/components/VirtualAudioSetup';
+import RealTimeTranscription from '@/components/RealTimeTranscription';
+import { VirtualAudioDevice } from '@/utils/VirtualAudioDriver';
+
+interface TranscriptSegment {
+  id: string;
+  timestamp: string;
+  speaker?: string;
+  text: string;
+  confidence: number;
+}
 
 const JoinMeeting = () => {
   const [meetingUrl, setMeetingUrl] = useState('');
@@ -23,6 +34,14 @@ const JoinMeeting = () => {
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [meetingBotStatus, setMeetingBotStatus] = useState<'idle' | 'starting' | 'success' | 'error'>('idle');
   
+  // Virtual audio states
+  const [selectedVirtualDevice, setSelectedVirtualDevice] = useState<VirtualAudioDevice | null>(null);
+  const [virtualAudioStream, setVirtualAudioStream] = useState<MediaStream | null>(null);
+  const [isVirtualAudioActive, setIsVirtualAudioActive] = useState(false);
+  const [transcriptSegments, setTranscriptSegments] = useState<TranscriptSegment[]>([]);
+  const [meetingMode, setMeetingMode] = useState<'bot' | 'virtual'>('bot');
+  
+  // ... keep existing code (refs and other state)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
@@ -44,8 +63,38 @@ const JoinMeeting = () => {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
+      if (virtualAudioStream) {
+        virtualAudioStream.getTracks().forEach(track => track.stop());
+      }
     };
   }, []);
+
+  // Virtual audio handlers
+  const handleVirtualDeviceSelected = (device: VirtualAudioDevice) => {
+    setSelectedVirtualDevice(device);
+    console.log('Selected virtual audio device:', device);
+  };
+
+  const handleVirtualAudioSetupComplete = (stream: MediaStream) => {
+    setVirtualAudioStream(stream);
+    toast({
+      title: "Virtual Audio Ready",
+      description: "Ready to capture meeting audio for transcription",
+    });
+  };
+
+  const handleTranscriptUpdate = (segments: TranscriptSegment[]) => {
+    setTranscriptSegments(segments);
+    // Combine all segments into a single transcript for saving
+    const combinedTranscript = segments
+      .map(segment => `[${segment.timestamp}] ${segment.speaker}: ${segment.text}`)
+      .join('\n');
+    setLiveTranscript(combinedTranscript);
+  };
+
+  const toggleVirtualAudioTranscription = () => {
+    setIsVirtualAudioActive(!isVirtualAudioActive);
+  };
 
   const handleJoinMeeting = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -282,7 +331,11 @@ const JoinMeeting = () => {
   };
 
   const handleSaveTranscription = async () => {
-    if (!transcriptionResults.length || !user) {
+    const transcriptToSave = transcriptSegments.length > 0 
+      ? transcriptSegments.map(s => `[${s.timestamp}] ${s.speaker}: ${s.text}`).join('\n')
+      : transcriptionResults.join(' ');
+
+    if (!transcriptToSave.trim() || !user) {
       toast({
         title: "Nothing to Save",
         description: "No transcription results to save.",
@@ -297,8 +350,8 @@ const JoinMeeting = () => {
         .from('transcriptions')
         .insert({
           user_id: user.id,
-          title: selectedFile?.name || 'Live Meeting Transcription',
-          content: transcriptionResults.join(' '),
+          title: selectedFile?.name || selectedVirtualDevice?.label || 'Live Meeting Transcription',
+          content: transcriptToSave,
           source_type: selectedFile ? 'upload' : 'meeting',
           audio_url: null,
           meeting_url: meetingUrl || null,
@@ -316,6 +369,7 @@ const JoinMeeting = () => {
       
       // Clear the results after saving
       setTranscriptionResults([]);
+      setTranscriptSegments([]);
       setSelectedFile(null);
       setMeetingUrl('');
       setMeetingBotStatus('idle');
@@ -381,124 +435,185 @@ const JoinMeeting = () => {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="meeting" className="mt-8">
+          <TabsContent value="meeting" className="mt-8 space-y-6">
+            {/* Meeting Mode Selection */}
             <Card className="bg-white/10 backdrop-blur-md border-white/20">
               <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <ExternalLink className="h-5 w-5 text-purple-400" />
-                  Join Live Meeting
-                </CardTitle>
+                <CardTitle className="text-white">Choose Meeting Mode</CardTitle>
                 <CardDescription className="text-slate-300">
-                  Enter the meeting URL and our bot will automatically join and transcribe the meeting
+                  Select how you want to capture and transcribe meeting audio
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {/* Status Alerts */}
-                {meetingBotStatus === 'success' && (
-                  <Alert className="mb-4 border-green-600 bg-green-600/10">
-                    <CheckCircle className="h-4 w-4 text-green-400" />
-                    <AlertDescription className="text-green-400">
-                      Meeting bot successfully started and joined the meeting.
-                    </AlertDescription>
-                  </Alert>
-                )}
-                
-                {meetingBotStatus === 'error' && (
-                  <Alert className="mb-4 border-red-600 bg-red-600/10">
-                    <XCircle className="h-4 w-4 text-red-400" />
-                    <AlertDescription className="text-red-400">
-                      Failed to start meeting bot. Please check your meeting URL and try again.
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                <form onSubmit={handleJoinMeeting} className="space-y-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="meeting-url" className="text-white">Meeting URL</Label>
-                    <Input
-                      id="meeting-url"
-                      type="url"
-                      placeholder="https://meet.google.com/abc-defg-hij or https://zoom.us/j/..."
-                      value={meetingUrl}
-                      onChange={(e) => setMeetingUrl(e.target.value)}
-                      className="bg-white/10 border-white/20 text-white placeholder:text-slate-400"
-                      required
-                    />
-                    <p className="text-sm text-slate-400">
-                      Supports Google Meet, Zoom, Microsoft Teams, and other popular platforms
-                    </p>
-                  </div>
-
-                  <div className="flex gap-4">
-                    <Button
-                      type="submit"
-                      disabled={loading}
-                      className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
-                    >
-                      {loading ? (
-                        <div className="flex items-center gap-2">
-                          {getStatusIcon(meetingBotStatus)}
-                          Starting Bot...
-                        </div>
-                      ) : (
-                        <>
-                          <Play className="h-4 w-4 mr-2" />
-                          Start Meeting Bot
-                        </>
-                      )}
-                    </Button>
-                    
-                    {!isRecording ? (
-                      <Button
-                        type="button"
-                        onClick={startRealTimeTranscription}
-                        className="bg-green-600 hover:bg-green-700"
-                      >
-                        <Mic className="h-4 w-4 mr-2" />
-                        Start Recording
-                      </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        onClick={stopRealTimeTranscription}
-                        className="bg-red-600 hover:bg-red-700"
-                      >
-                        <Square className="h-4 w-4 mr-2" />
-                        Stop Recording
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* Connection Status */}
-                  {connectionStatus !== 'idle' && (
-                    <div className="flex items-center gap-2">
-                      {getStatusIcon(connectionStatus)}
-                      <span className={`text-sm ${
-                        connectionStatus === 'connected' ? 'text-green-400' :
-                        connectionStatus === 'error' ? 'text-red-400' :
-                        'text-yellow-400'
-                      }`}>
-                        {connectionStatus === 'connecting' && 'Connecting to transcription service...'}
-                        {connectionStatus === 'connected' && 'Connected to transcription service'}
-                        {connectionStatus === 'error' && 'Failed to connect to transcription service'}
-                      </span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Button
+                    onClick={() => setMeetingMode('bot')}
+                    variant={meetingMode === 'bot' ? 'default' : 'outline'}
+                    className={`h-20 p-4 ${meetingMode === 'bot' 
+                      ? 'bg-purple-600 hover:bg-purple-700' 
+                      : 'border-white/30 hover:bg-white/10'} text-white`}
+                  >
+                    <div className="text-center">
+                      <ExternalLink className="h-6 w-6 mx-auto mb-2" />
+                      <div className="font-medium">Meeting Bot</div>
+                      <div className="text-sm opacity-75">Automatically join meetings</div>
                     </div>
-                  )}
-                </form>
-
-                {/* Live Transcript Display */}
-                {(isRecording || liveTranscript) && (
-                  <div className="mt-6">
-                    <h3 className="text-white font-semibold mb-3">Live Transcript</h3>
-                    <div className="bg-white/5 rounded-lg p-4 border border-white/10 min-h-[100px] max-h-[300px] overflow-y-auto">
-                      <p className="text-slate-300 leading-relaxed">
-                        {liveTranscript || (isRecording ? "Listening..." : "No transcript yet")}
-                      </p>
+                  </Button>
+                  
+                  <Button
+                    onClick={() => setMeetingMode('virtual')}
+                    variant={meetingMode === 'virtual' ? 'default' : 'outline'}
+                    className={`h-20 p-4 ${meetingMode === 'virtual' 
+                      ? 'bg-purple-600 hover:bg-purple-700' 
+                      : 'border-white/30 hover:bg-white/10'} text-white`}
+                  >
+                    <div className="text-center">
+                      <Headphones className="h-6 w-6 mx-auto mb-2" />
+                      <div className="font-medium">Virtual Audio</div>
+                      <div className="text-sm opacity-75">Capture system audio</div>
                     </div>
-                  </div>
-                )}
+                  </Button>
+                </div>
               </CardContent>
             </Card>
+
+            {meetingMode === 'virtual' && (
+              <>
+                <VirtualAudioSetup
+                  onDeviceSelected={handleVirtualDeviceSelected}
+                  onSetupComplete={handleVirtualAudioSetupComplete}
+                />
+                
+                {virtualAudioStream && (
+                  <RealTimeTranscription
+                    audioStream={virtualAudioStream}
+                    onTranscriptUpdate={handleTranscriptUpdate}
+                    isActive={isVirtualAudioActive}
+                    onToggle={toggleVirtualAudioTranscription}
+                  />
+                )}
+              </>
+            )}
+
+            {meetingMode === 'bot' && (
+              <Card className="bg-white/10 backdrop-blur-md border-white/20">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center gap-2">
+                    <ExternalLink className="h-5 w-5 text-purple-400" />
+                    Join Live Meeting
+                  </CardTitle>
+                  <CardDescription className="text-slate-300">
+                    Enter the meeting URL and our bot will automatically join and transcribe the meeting
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {/* Status Alerts */}
+                  {meetingBotStatus === 'success' && (
+                    <Alert className="mb-4 border-green-600 bg-green-600/10">
+                      <CheckCircle className="h-4 w-4 text-green-400" />
+                      <AlertDescription className="text-green-400">
+                        Meeting bot successfully started and joined the meeting.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  
+                  {meetingBotStatus === 'error' && (
+                    <Alert className="mb-4 border-red-600 bg-red-600/10">
+                      <XCircle className="h-4 w-4 text-red-400" />
+                      <AlertDescription className="text-red-400">
+                        Failed to start meeting bot. Please check your meeting URL and try again.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  <form onSubmit={handleJoinMeeting} className="space-y-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="meeting-url" className="text-white">Meeting URL</Label>
+                      <Input
+                        id="meeting-url"
+                        type="url"
+                        placeholder="https://meet.google.com/abc-defg-hij or https://zoom.us/j/..."
+                        value={meetingUrl}
+                        onChange={(e) => setMeetingUrl(e.target.value)}
+                        className="bg-white/10 border-white/20 text-white placeholder:text-slate-400"
+                        required
+                      />
+                      <p className="text-sm text-slate-400">
+                        Supports Google Meet, Zoom, Microsoft Teams, and other popular platforms
+                      </p>
+                    </div>
+
+                    <div className="flex gap-4">
+                      <Button
+                        type="submit"
+                        disabled={loading}
+                        className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+                      >
+                        {loading ? (
+                          <div className="flex items-center gap-2">
+                            {getStatusIcon(meetingBotStatus)}
+                            Starting Bot...
+                          </div>
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4 mr-2" />
+                            Start Meeting Bot
+                          </>
+                        )}
+                      </Button>
+                      
+                      {!isRecording ? (
+                        <Button
+                          type="button"
+                          onClick={startRealTimeTranscription}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          <Mic className="h-4 w-4 mr-2" />
+                          Start Recording
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          onClick={stopRealTimeTranscription}
+                          className="bg-red-600 hover:bg-red-700"
+                        >
+                          <Square className="h-4 w-4 mr-2" />
+                          Stop Recording
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Connection Status */}
+                    {connectionStatus !== 'idle' && (
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(connectionStatus)}
+                        <span className={`text-sm ${
+                          connectionStatus === 'connected' ? 'text-green-400' :
+                          connectionStatus === 'error' ? 'text-red-400' :
+                          'text-yellow-400'
+                        }`}>
+                          {connectionStatus === 'connecting' && 'Connecting to transcription service...'}
+                          {connectionStatus === 'connected' && 'Connected to transcription service'}
+                          {connectionStatus === 'error' && 'Failed to connect to transcription service'}
+                        </span>
+                      </div>
+                    )}
+                  </form>
+
+                  {/* Live Transcript Display */}
+                  {(isRecording || liveTranscript) && (
+                    <div className="mt-6">
+                      <h3 className="text-white font-semibold mb-3">Live Transcript</h3>
+                      <div className="bg-white/5 rounded-lg p-4 border border-white/10 min-h-[100px] max-h-[300px] overflow-y-auto">
+                        <p className="text-slate-300 leading-relaxed">
+                          {liveTranscript || (isRecording ? "Listening..." : "No transcript yet")}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="upload" className="mt-8">
@@ -557,18 +672,39 @@ const JoinMeeting = () => {
         </Tabs>
 
         {/* Transcription Results */}
-        {transcriptionResults.length > 0 && (
+        {(transcriptionResults.length > 0 || transcriptSegments.length > 0) && (
           <Card className="mt-8 bg-white/10 backdrop-blur-md border-white/20">
             <CardHeader>
               <CardTitle className="text-white">Transcription Results</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {transcriptionResults.map((text, index) => (
-                  <div key={index} className="bg-white/5 rounded-lg p-4 border border-white/10">
-                    <p className="text-slate-300 leading-relaxed">{text}</p>
-                  </div>
-                ))}
+                {transcriptSegments.length > 0 ? (
+                  // Show structured transcript segments
+                  transcriptSegments.map((segment, index) => (
+                    <div key={segment.id || index} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-purple-400">
+                            {segment.speaker}
+                          </span>
+                          <span className="text-xs text-slate-400">{segment.timestamp}</span>
+                        </div>
+                        <span className="text-xs text-green-400">
+                          {Math.round(segment.confidence * 100)}%
+                        </span>
+                      </div>
+                      <p className="text-slate-300 leading-relaxed">{segment.text}</p>
+                    </div>
+                  ))
+                ) : (
+                  // Show basic transcription results
+                  transcriptionResults.map((text, index) => (
+                    <div key={index} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                      <p className="text-slate-300 leading-relaxed">{text}</p>
+                    </div>
+                  ))
+                )}
               </div>
               <div className="mt-4 flex gap-2">
                 <Button
@@ -584,14 +720,22 @@ const JoinMeeting = () => {
                   )}
                 </Button>
                 <Button
-                  onClick={() => navigator.clipboard.writeText(transcriptionResults.join(' '))}
+                  onClick={() => {
+                    const transcriptText = transcriptSegments.length > 0
+                      ? transcriptSegments.map(s => `[${s.timestamp}] ${s.speaker}: ${s.text}`).join('\n')
+                      : transcriptionResults.join(' ');
+                    navigator.clipboard.writeText(transcriptText);
+                  }}
                   variant="outline"
                   className="border-white/30 hover:bg-white/10 text-slate-950"
                 >
                   Copy All
                 </Button>
                 <Button
-                  onClick={() => setTranscriptionResults([])}
+                  onClick={() => {
+                    setTranscriptionResults([]);
+                    setTranscriptSegments([]);
+                  }}
                   variant="outline"
                   className="border-white/30 hover:bg-white/10 text-slate-950"
                 >

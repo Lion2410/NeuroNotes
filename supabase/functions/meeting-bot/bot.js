@@ -10,14 +10,15 @@ class MeetingBot {
     this.ws = null;
     this.isRecording = false;
     this.audioChunks = [];
+    this.virtualAudioEnabled = false;
   }
 
   async initialize() {
     console.log(`Initializing bot for meeting: ${this.meetingUrl}`);
     
-    // Launch browser with audio permissions
+    // Launch browser with enhanced audio permissions
     this.browser = await chromium.launch({
-      headless: true, // Use headless for production
+      headless: true,
       args: [
         '--use-fake-ui-for-media-stream',
         '--use-fake-device-for-media-stream',
@@ -27,7 +28,9 @@ class MeetingBot {
         '--autoplay-policy=no-user-gesture-required',
         '--disable-background-timer-throttling',
         '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding'
+        '--disable-renderer-backgrounding',
+        '--enable-experimental-web-platform-features',
+        '--enable-features=WebAudioEvaluateNoDelay'
       ]
     });
 
@@ -38,27 +41,37 @@ class MeetingBot {
 
     this.page = await context.newPage();
     
-    // Expose the WebSocket to the page context
-    await this.page.exposeFunction('sendAudioToTranscription', (base64Audio) => {
+    // Expose enhanced WebSocket communication
+    await this.page.exposeFunction('sendAudioToTranscription', (base64Audio, audioMetadata) => {
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({
           type: 'audio',
           data: base64Audio,
-          transcriptionId: this.transcriptionId
+          transcriptionId: this.transcriptionId,
+          metadata: audioMetadata || {}
         }));
       }
+    });
+
+    await this.page.exposeFunction('reportAudioStatus', (status) => {
+      console.log('Audio capture status:', status);
     });
   }
 
   async connectToTranscriptionService() {
-    const wsUrl = process.env.SUPABASE_URL.replace('https://', 'wss://') + '/functions/v1/transcribe-audio-realtime';
+    const wsUrl = process.env.SUPABASE_URL.replace('https://', 'wss://') + '/functions/v1/meeting-bot-realtime';
     
-    console.log('Connecting to transcription WebSocket:', wsUrl);
+    console.log('Connecting to meeting bot transcription WebSocket:', wsUrl);
     
     this.ws = new WebSocket(wsUrl);
     
     this.ws.on('open', () => {
-      console.log('Connected to transcription service');
+      console.log('Connected to meeting bot transcription service');
+      // Initialize the transcription session
+      this.ws.send(JSON.stringify({
+        type: 'initialize',
+        transcriptionId: this.transcriptionId
+      }));
     });
 
     this.ws.on('message', (data) => {
@@ -68,6 +81,8 @@ class MeetingBot {
         
         if (message.type === 'transcript') {
           this.handleTranscript(message.transcript, message.confidence);
+        } else if (message.type === 'initialized') {
+          console.log('Transcription session initialized');
         }
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);
@@ -242,36 +257,115 @@ class MeetingBot {
   }
 
   async startAudioCapture() {
-    console.log('Starting audio capture...');
+    console.log('Starting enhanced audio capture...');
     
     try {
-      // Inject audio capture script into the page
+      // Inject enhanced audio capture script
       await this.page.addScriptTag({
         content: `
           (async function() {
             try {
-              console.log('Starting audio capture in browser context...');
+              console.log('Starting enhanced audio capture in browser context...');
               
-              const stream = await navigator.mediaDevices.getDisplayMedia({
-                audio: {
-                  echoCancellation: false,
-                  noiseSuppression: false,
-                  autoGainControl: false,
-                  sampleRate: 24000
+              let audioStream = null;
+              let audioContext = null;
+              let processor = null;
+              let source = null;
+              
+              // Try multiple methods for audio capture
+              const captureStrategies = [
+                // Strategy 1: getDisplayMedia with audio
+                async () => {
+                  console.log('Trying getDisplayMedia strategy...');
+                  return await navigator.mediaDevices.getDisplayMedia({
+                    audio: {
+                      echoCancellation: false,
+                      noiseSuppression: false,
+                      autoGainControl: false,
+                      sampleRate: 24000,
+                      channelCount: 1
+                    },
+                    video: false
+                  });
                 },
-                video: false
-              });
+                
+                // Strategy 2: getUserMedia with specific constraints
+                async () => {
+                  console.log('Trying getUserMedia strategy...');
+                  return await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                      echoCancellation: false,
+                      noiseSuppression: false,
+                      autoGainControl: false,
+                      sampleRate: 24000,
+                      channelCount: 1,
+                      deviceId: 'default'
+                    }
+                  });
+                },
+                
+                // Strategy 3: Try to find virtual audio devices
+                async () => {
+                  console.log('Trying virtual audio device strategy...');
+                  const devices = await navigator.mediaDevices.enumerateDevices();
+                  const virtualDevice = devices.find(device => 
+                    device.kind === 'audioinput' && 
+                    (device.label.toLowerCase().includes('virtual') ||
+                     device.label.toLowerCase().includes('cable') ||
+                     device.label.toLowerCase().includes('monitor'))
+                  );
+                  
+                  if (virtualDevice) {
+                    console.log('Found virtual audio device:', virtualDevice.label);
+                    return await navigator.mediaDevices.getUserMedia({
+                      audio: {
+                        deviceId: { exact: virtualDevice.deviceId },
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false,
+                        sampleRate: 24000,
+                        channelCount: 1
+                      }
+                    });
+                  }
+                  throw new Error('No virtual audio device found');
+                }
+              ];
               
-              console.log('Got display media stream');
+              let strategyIndex = 0;
+              while (strategyIndex < captureStrategies.length && !audioStream) {
+                try {
+                  audioStream = await captureStrategies[strategyIndex]();
+                  console.log('Audio capture strategy succeeded:', strategyIndex);
+                  break;
+                } catch (error) {
+                  console.log('Strategy', strategyIndex, 'failed:', error.message);
+                  strategyIndex++;
+                }
+              }
               
-              const audioContext = new AudioContext({ sampleRate: 24000 });
-              const source = audioContext.createMediaStreamSource(stream);
-              const processor = audioContext.createScriptProcessor(4096, 1, 1);
+              if (!audioStream) {
+                throw new Error('All audio capture strategies failed');
+              }
               
+              window.reportAudioStatus('Audio stream acquired');
+              
+              // Set up audio processing
+              audioContext = new AudioContext({ sampleRate: 24000 });
+              source = audioContext.createMediaStreamSource(audioStream);
+              processor = audioContext.createScriptProcessor(4096, 1, 1);
+              
+              let audioChunkCount = 0;
               processor.onaudioprocess = function(e) {
                 const inputData = e.inputBuffer.getChannelData(0);
                 
-                // Convert Float32Array to Int16Array
+                // Check for actual audio data
+                const hasAudio = inputData.some(sample => Math.abs(sample) > 0.001);
+                if (!hasAudio) return;
+                
+                audioChunkCount++;
+                
+                // Convert Float32Array to Int16Array (PCM16)
                 const int16Array = new Int16Array(inputData.length);
                 for (let i = 0; i < inputData.length; i++) {
                   const s = Math.max(-1, Math.min(1, inputData[i]));
@@ -290,86 +384,88 @@ class MeetingBot {
                 
                 const base64 = btoa(binary);
                 
-                // Send to transcription service
+                // Send to transcription service with metadata
                 if (window.sendAudioToTranscription) {
-                  window.sendAudioToTranscription(base64);
+                  window.sendAudioToTranscription(base64, {
+                    chunkIndex: audioChunkCount,
+                    sampleRate: 24000,
+                    channels: 1,
+                    format: 'pcm16'
+                  });
+                }
+                
+                // Report status periodically
+                if (audioChunkCount % 100 === 0) {
+                  window.reportAudioStatus('Audio chunks sent: ' + audioChunkCount);
                 }
               };
               
               source.connect(processor);
               processor.connect(audioContext.destination);
               
-              console.log('Audio capture started successfully');
+              console.log('Enhanced audio capture started successfully');
+              window.reportAudioStatus('Enhanced audio capture active');
               
               // Store references for cleanup
-              window.audioStream = stream;
+              window.audioStream = audioStream;
               window.audioContext = audioContext;
               window.audioProcessor = processor;
+              window.audioSource = source;
               
             } catch (error) {
-              console.error('Error starting audio capture:', error);
+              console.error('Error starting enhanced audio capture:', error);
+              window.reportAudioStatus('Audio capture failed: ' + error.message);
             }
           })();
         `
       });
       
       this.isRecording = true;
-      console.log('Audio capture script injected');
+      console.log('Enhanced audio capture script injected');
       
     } catch (error) {
-      console.error('Error starting audio capture:', error);
+      console.error('Error starting enhanced audio capture:', error);
       throw error;
     }
   }
 
   async handleTranscript(transcript, confidence) {
     console.log(`Received transcript: ${transcript} (confidence: ${confidence})`);
-    
-    // Update Supabase with the transcript
-    try {
-      const timestamp = new Date().toLocaleTimeString();
-      const formattedTranscript = `[${timestamp}] ${transcript}`;
-      
-      const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/transcriptions?id=eq.${this.transcriptionId}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal'
-        },
-        body: JSON.stringify({
-          content: formattedTranscript,
-          updated_at: new Date().toISOString()
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      console.log('Transcript updated in database');
-    } catch (error) {
-      console.error('Error updating transcript:', error);
-    }
+    // The transcript is now handled by the meeting-bot-realtime function
+    // which directly updates the database
   }
 
   async cleanup() {
-    console.log('Cleaning up bot...');
+    console.log('Cleaning up enhanced meeting bot...');
     
-    // Stop audio capture
+    // Enhanced audio cleanup
     if (this.isRecording && this.page) {
       try {
         await this.page.evaluate(() => {
           if (window.audioStream) {
             window.audioStream.getTracks().forEach(track => track.stop());
           }
+          if (window.audioSource) {
+            window.audioSource.disconnect();
+          }
+          if (window.audioProcessor) {
+            window.audioProcessor.disconnect();
+          }
           if (window.audioContext) {
             window.audioContext.close();
           }
         });
       } catch (error) {
-        console.error('Error stopping audio capture:', error);
+        console.error('Error stopping enhanced audio capture:', error);
       }
+    }
+    
+    // Send end meeting signal
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        type: 'end_meeting',
+        transcriptionId: this.transcriptionId
+      }));
     }
     
     if (this.ws) {
@@ -383,43 +479,43 @@ class MeetingBot {
 
   async run() {
     try {
-      console.log('Starting meeting bot...');
+      console.log('Starting enhanced meeting bot...');
       
       await this.initialize();
-      console.log('Bot initialized');
+      console.log('Enhanced bot initialized');
       
       await this.connectToTranscriptionService();
-      console.log('Connected to transcription service');
+      console.log('Connected to enhanced transcription service');
       
       await this.joinMeeting();
       console.log('Joined meeting');
       
       await this.startAudioCapture();
-      console.log('Audio capture started');
+      console.log('Enhanced audio capture started');
       
-      console.log('Bot is now running and capturing audio...');
+      console.log('Enhanced bot is now running and capturing audio...');
       
       // Keep the bot running
       const keepAlive = setInterval(() => {
-        console.log('Bot is still running...');
+        console.log('Enhanced bot is still running...');
       }, 30000);
       
       // Handle graceful shutdown
       process.on('SIGINT', async () => {
-        console.log('Received SIGINT, shutting down gracefully...');
+        console.log('Received SIGINT, shutting down enhanced bot gracefully...');
         clearInterval(keepAlive);
         await this.cleanup();
         process.exit(0);
       });
       
       process.on('SIGTERM', async () => {
-        console.log('Received SIGTERM, shutting down gracefully...');
+        console.log('Received SIGTERM, shutting down enhanced bot gracefully...');
         clearInterval(keepAlive);
         await this.cleanup();
         process.exit(0);
       });
       
-      // Auto-shutdown after 2 hours to prevent runaway processes
+      // Auto-shutdown after 2 hours
       setTimeout(async () => {
         console.log('Auto-shutdown after 2 hours');
         clearInterval(keepAlive);
@@ -428,7 +524,7 @@ class MeetingBot {
       }, 2 * 60 * 60 * 1000);
       
     } catch (error) {
-      console.error('Error running bot:', error);
+      console.error('Error running enhanced bot:', error);
       await this.cleanup();
       process.exit(1);
     }
