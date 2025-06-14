@@ -116,7 +116,7 @@ const Groups = () => {
     try {
       console.log('Creating group:', groupName, 'for user:', user.id);
       
-      // Create the group first
+      // Start a transaction-like approach
       const { data: newGroup, error: groupError } = await supabase
         .from('groups')
         .insert({
@@ -133,7 +133,7 @@ const Groups = () => {
 
       console.log('Group created successfully:', newGroup);
 
-      // Add creator as admin member
+      // Add creator as admin member - this should now work with the fixed policies
       const { error: memberError } = await supabase
         .from('group_members')
         .insert({
@@ -144,18 +144,24 @@ const Groups = () => {
 
       if (memberError) {
         console.error('Member creation error:', memberError);
-        // Log but don't throw - the group was created successfully
-        console.log('Warning: Could not add creator as member, but group was created');
+        // If adding the creator as member fails, we should clean up the group
+        // But let's first try to understand why it failed
+        console.log('Failed to add creator as member. Error details:', memberError);
+        
+        toast({
+          title: "Warning",
+          description: `Group "${groupName}" was created but there was an issue adding you as a member. Please try refreshing the page.`,
+          variant: "destructive"
+        });
       } else {
         console.log('Creator successfully added as admin member');
+        toast({
+          title: "Group Created",
+          description: `"${groupName}" has been created successfully.`
+        });
       }
 
-      toast({
-        title: "Group Created",
-        description: `"${groupName}" has been created successfully.`
-      });
-
-      // Refresh the list
+      // Refresh the list regardless to see if the group appears
       await fetchGroups();
     } catch (error: any) {
       console.error('Error creating group:', error);
