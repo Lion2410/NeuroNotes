@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -96,17 +97,22 @@ const Notes: React.FC = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+      <div 
+        className="min-h-screen"
+        style={{
+          background: 'linear-gradient(to bottom, #e570e7 0%, #c85ec7 47%, #a849a3 100%)'
+        }}
+      >
         <NotesHeader onBack={handleBack} onCreateNote={handleCreateNote} />
         <div className="container mx-auto px-6 py-8">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-red-400 mb-4">Error Loading Notes</h2>
-            <p className="text-gray-300 mb-4">
+            <p className="text-white mb-4">
               {error instanceof Error ? error.message : 'Failed to load notes'}
             </p>
             <Button 
               onClick={() => queryClient.invalidateQueries({ queryKey: ['user-transcriptions'] })}
-              className="bg-purple-600 hover:bg-purple-700"
+              className="bg-white/20 hover:bg-white/30 text-white"
             >
               Try Again
             </Button>
@@ -117,7 +123,12 @@ const Notes: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+    <div 
+      className="min-h-screen"
+      style={{
+        background: 'linear-gradient(to bottom, #e570e7 0%, #c85ec7 47%, #a849a3 100%)'
+      }}
+    >
       <NotesHeader 
         onBack={handleBack} 
         onCreateNote={handleCreateNote}
@@ -144,28 +155,28 @@ const Notes: React.FC = () => {
         {/* Search Section */}
         <div className="mb-8">
           <div className="relative max-w-md">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white/70 h-5 w-5" />
             <Input
               placeholder="Search notes..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-12 h-12 bg-gray-800/60 backdrop-blur-sm border-gray-600/50 text-white placeholder:text-gray-400 focus:border-purple-500 focus:ring-purple-500 rounded-xl"
+              className="pl-12 h-12 bg-white/10 backdrop-blur-sm border-white/20 text-white placeholder:text-white/70 focus:border-white/40 focus:ring-white/40 rounded-xl"
             />
           </div>
         </div>
 
         {isLoading ? (
           <div className="text-center py-16">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-4"></div>
-            <p className="text-gray-300">Loading notes...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
+            <p className="text-white">Loading notes...</p>
           </div>
         ) : notes.length === 0 ? (
           <div className="text-center py-16">
-            <FileText className="h-20 w-20 text-gray-500 mx-auto mb-6" />
+            <FileText className="h-20 w-20 text-white/50 mx-auto mb-6" />
             <h3 className="text-2xl font-semibold text-white mb-3">
               {searchTerm ? 'No notes found' : 'No notes yet'}
             </h3>
-            <p className="text-gray-400 mb-8 max-w-md mx-auto">
+            <p className="text-white/70 mb-8 max-w-md mx-auto">
               {searchTerm 
                 ? 'Try adjusting your search criteria.'
                 : 'Create your first note by starting a recording or joining a meeting.'
@@ -174,7 +185,7 @@ const Notes: React.FC = () => {
             {!searchTerm && (
               <Button 
                 onClick={handleCreateNote}
-                className="bg-purple-600 hover:bg-purple-700 text-white"
+                className="bg-white/20 hover:bg-white/30 text-white"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Create Your First Note
@@ -186,7 +197,7 @@ const Notes: React.FC = () => {
             {notes.map((note) => (
               <Card 
                 key={note.id} 
-                className="bg-gray-800/80 backdrop-blur-md border-gray-700/50 hover:bg-gray-800/90 transition-all duration-200 rounded-2xl overflow-hidden cursor-pointer"
+                className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-200 rounded-2xl overflow-hidden cursor-pointer"
                 onClick={() => handleNoteClick(note.id)}
               >
                 <CardContent className="p-6">
@@ -196,12 +207,12 @@ const Notes: React.FC = () => {
                       <div className="flex items-center gap-3 mb-3">
                         <Badge 
                           variant="secondary" 
-                          className="bg-purple-600/20 text-purple-300 border-purple-500/30 px-3 py-1 text-xs font-medium"
+                          className="bg-white/20 text-white border-white/30 px-3 py-1 text-xs font-medium"
                         >
                           {note.source_type === 'upload' ? 'Upload' : note.source_type}
                         </Badge>
                         {note.duration && (
-                          <div className="flex items-center gap-1 text-gray-400 text-sm">
+                          <div className="flex items-center gap-1 text-white/70 text-sm">
                             <Clock className="h-3 w-3" />
                             <span>{formatDuration(note.duration)}</span>
                           </div>
@@ -213,12 +224,12 @@ const Notes: React.FC = () => {
                       </h3>
                       
                       {(note.content || note.summary) && (
-                        <p className="text-gray-300 text-sm line-clamp-2 mb-3">
+                        <p className="text-white/80 text-sm line-clamp-2 mb-3">
                           {note.summary || (note.content && note.content.substring(0, 120) + '...')}
                         </p>
                       )}
                       
-                      <div className="flex items-center gap-1 text-gray-400 text-sm">
+                      <div className="flex items-center gap-1 text-white/70 text-sm">
                         <Clock className="h-3 w-3" />
                         <span>{formatDate(note.created_at)}</span>
                       </div>
@@ -229,7 +240,7 @@ const Notes: React.FC = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-gray-400 hover:text-white hover:bg-gray-700/50"
+                        className="text-white/70 hover:text-white hover:bg-white/10"
                         onClick={(e) => {
                           e.stopPropagation();
                           // Handle export
@@ -240,7 +251,7 @@ const Notes: React.FC = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-gray-400 hover:text-white hover:bg-gray-700/50"
+                        className="text-white/70 hover:text-white hover:bg-white/10"
                         onClick={(e) => {
                           e.stopPropagation();
                           // Handle share
@@ -251,7 +262,7 @@ const Notes: React.FC = () => {
                     </div>
                   </div>
                 </CardContent>
-              </Card>
+              </div>
             ))}
           </div>
         )}

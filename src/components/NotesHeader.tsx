@@ -17,7 +17,12 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
   massDeleteComponent 
 }) => {
   return (
-    <div className="bg-gray-900/95 backdrop-blur-sm border-b border-gray-700/50 sticky top-0 z-10">
+    <div 
+      className="backdrop-blur-sm border-b border-gray-700/50 sticky top-0 z-10"
+      style={{
+        background: 'linear-gradient(to bottom, #e570e7 0%, #c85ec7 47%, #a849a3 100%)'
+      }}
+    >
       <div className="container mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           {/* Left side - Back button and branding */}
@@ -26,7 +31,7 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
               variant="ghost"
               size="sm"
               onClick={onBack}
-              className="text-gray-300 hover:bg-gray-800/50 hover:text-white p-2"
+              className="text-white hover:bg-white/10 hover:text-white p-2"
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -41,7 +46,7 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
               </div>
               <div className="flex items-center gap-2 text-white">
                 <span className="text-xl font-semibold">NeuroNotes</span>
-                <span className="text-gray-400">/</span>
+                <span className="text-white/70">/</span>
                 <span className="text-lg">All Notes</span>
               </div>
             </div>
