@@ -52,31 +52,52 @@ const AddNotesToGroupDialog: React.FC<AddNotesToGroupDialogProps> = ({
 
     setLoading(true);
     try {
+      console.log('Fetching user transcriptions for group:', groupId);
+      
       // Get user's transcriptions that aren't already in this group
       const { data: existingGroupNotes, error: existingError } = await supabase
         .from('group_notes')
         .select('transcription_id')
         .eq('group_id', groupId);
 
-      if (existingError) throw existingError;
+      if (existingError) {
+        console.error('Error fetching existing group notes:', existingError);
+        throw existingError;
+      }
 
+      console.log('Existing group notes:', existingGroupNotes);
       const existingTranscriptionIds = existingGroupNotes?.map(note => note.transcription_id) || [];
+      console.log('Existing transcription IDs:', existingTranscriptionIds);
 
-      const { data: transcriptions, error } = await supabase
+      // Build the query for user transcriptions
+      let transcriptionsQuery = supabase
         .from('transcriptions')
         .select('id, title, content, created_at, source_type, duration')
-        .eq('user_id', user.id)
-        .not('id', 'in', `(${existingTranscriptionIds.length > 0 ? existingTranscriptionIds.join(',') : 'null'})`)
+        .eq('user_id', user.id);
+
+      // Only add the filter if there are existing transcription IDs to exclude
+      if (existingTranscriptionIds.length > 0) {
+        transcriptionsQuery = transcriptionsQuery.not('id', 'in', `(${existingTranscriptionIds.join(',')})`);
+        console.log('Applying filter to exclude existing transcriptions');
+      } else {
+        console.log('No existing transcriptions to exclude');
+      }
+
+      const { data: transcriptions, error } = await transcriptionsQuery
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching transcriptions:', error);
+        throw error;
+      }
 
+      console.log('Fetched transcriptions:', transcriptions?.length || 0);
       setUserTranscriptions(transcriptions || []);
     } catch (error: any) {
-      console.error('Error fetching user transcriptions:', error);
+      console.error('Error in fetchUserTranscriptions:', error);
       toast({
         title: "Error",
-        description: "Failed to load your notes.",
+        description: "Failed to load your notes. Please try again.",
         variant: "destructive"
       });
     } finally {
