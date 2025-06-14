@@ -9,6 +9,135 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      group_members: {
+        Row: {
+          group_id: number
+          id: number
+          is_admin: boolean
+          joined_at: string
+          user_id: string
+        }
+        Insert: {
+          group_id: number
+          id?: number
+          is_admin?: boolean
+          joined_at?: string
+          user_id: string
+        }
+        Update: {
+          group_id?: number
+          id?: number
+          is_admin?: boolean
+          joined_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_members_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      groups: {
+        Row: {
+          created_at: string
+          creator_id: string
+          id: number
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          creator_id: string
+          id?: number
+          name: string
+        }
+        Update: {
+          created_at?: string
+          creator_id?: string
+          id?: number
+          name?: string
+        }
+        Relationships: []
+      }
+      invitations: {
+        Row: {
+          created_at: string
+          group_id: number
+          id: number
+          invite_token: string
+          invited_by: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          group_id: number
+          id?: number
+          invite_token: string
+          invited_by: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          group_id?: number
+          id?: number
+          invite_token?: string
+          invited_by?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invitations_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notes: {
+        Row: {
+          content: string | null
+          created_at: string
+          group_id: number
+          id: number
+          is_private: boolean
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          group_id: number
+          id?: number
+          is_private?: boolean
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          group_id?: number
+          id?: number
+          is_private?: boolean
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notes_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -158,7 +287,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_groups: {
+        Args: { _user_id: string }
+        Returns: {
+          group_id: number
+        }[]
+      }
+      is_group_admin: {
+        Args: { _user_id: string; _group_id: number }
+        Returns: boolean
+      }
+      is_group_member: {
+        Args: { _user_id: string; _group_id: number }
+        Returns: boolean
+      }
+      join_group_via_invitation: {
+        Args: { _invite_token: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

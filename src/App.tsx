@@ -14,8 +14,8 @@ import JoinMeeting from "./pages/JoinMeeting";
 import TranscriptEditor from "./pages/TranscriptEditor";
 import Profile from "./pages/Profile";
 import Notes from "./pages/Notes";
-import Team from "./pages/Team";
-import JoinTeam from "./pages/JoinTeam";
+import Groups from "./pages/Groups";
+import JoinGroup from "./pages/JoinGroup";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -31,7 +31,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/join-team" element={<JoinTeam />} />
+            <Route path="/join-group" element={<JoinGroup />} />
             <Route 
               path="/dashboard" 
               element={
@@ -73,10 +73,10 @@ const App = () => (
               } 
             />
             <Route 
-              path="/team" 
+              path="/groups" 
               element={
                 <ProtectedRoute>
-                  <Team />
+                  <Groups />
                 </ProtectedRoute>
               } 
             />
