@@ -5,18 +5,18 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { FileText, Plus } from 'lucide-react';
+import { FileText, Plus, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
-interface UserNote {
-  id: number;
+interface UserTranscription {
+  id: string;
   title: string;
   content: string | null;
   created_at: string;
-  is_private: boolean;
-  group_id: number | null;
+  source_type: string;
+  duration: number | null;
 }
 
 interface AddNotesToGroupDialogProps {
@@ -34,8 +34,8 @@ const AddNotesToGroupDialog: React.FC<AddNotesToGroupDialogProps> = ({
   groupName,
   onNotesAdded
 }) => {
-  const [userNotes, setUserNotes] = useState<UserNote[]>([]);
-  const [selectedNotes, setSelectedNotes] = useState<Set<number>>(new Set());
+  const [userTranscriptions, setUserTranscriptions] = useState<UserTranscription[]>([]);
+  const [selectedTranscriptions, setSelectedTranscriptions] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const { toast } = useToast();
@@ -43,29 +43,27 @@ const AddNotesToGroupDialog: React.FC<AddNotesToGroupDialogProps> = ({
 
   useEffect(() => {
     if (isOpen && user) {
-      fetchUserNotes();
+      fetchUserTranscriptions();
     }
   }, [isOpen, user]);
 
-  const fetchUserNotes = async () => {
+  const fetchUserTranscriptions = async () => {
     if (!user) return;
 
     setLoading(true);
     try {
-      // Get user's notes that are either not in any group or in a different group
-      const { data: notes, error } = await supabase
-        .from('notes')
-        .select('id, title, content, created_at, is_private, group_id')
+      // Get user's transcriptions from the dashboard
+      const { data: transcriptions, error } = await supabase
+        .from('transcriptions')
+        .select('id, title, content, created_at, source_type, duration')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      // Filter out notes that are already in this group
-      const availableNotes = notes?.filter(note => note.group_id !== groupId) || [];
-      setUserNotes(availableNotes);
+      setUserTranscriptions(transcriptions || []);
     } catch (error: any) {
-      console.error('Error fetching user notes:', error);
+      console.error('Error fetching user transcriptions:', error);
       toast({
         title: "Error",
         description: "Failed to load your notes.",
@@ -76,18 +74,18 @@ const AddNotesToGroupDialog: React.FC<AddNotesToGroupDialogProps> = ({
     }
   };
 
-  const handleNoteToggle = (noteId: number, checked: boolean) => {
-    const newSelected = new Set(selectedNotes);
+  const handleTranscriptionToggle = (transcriptionId: string, checked: boolean) => {
+    const newSelected = new Set(selectedTranscriptions);
     if (checked) {
-      newSelected.add(noteId);
+      newSelected.add(transcriptionId);
     } else {
-      newSelected.delete(noteId);
+      newSelected.delete(transcriptionId);
     }
-    setSelectedNotes(newSelected);
+    setSelectedTranscriptions(newSelected);
   };
 
   const handleAddNotes = async () => {
-    if (selectedNotes.size === 0) {
+    if (selectedTranscriptions.size === 0) {
       toast({
         title: "No Notes Selected",
         description: "Please select at least one note to add to the group.",
@@ -98,23 +96,33 @@ const AddNotesToGroupDialog: React.FC<AddNotesToGroupDialogProps> = ({
 
     setAdding(true);
     try {
-      // Update selected notes to belong to this group
-      const noteIds = Array.from(selectedNotes);
+      // Get selected transcriptions
+      const selectedTranscriptionIds = Array.from(selectedTranscriptions);
+      const selectedItems = userTranscriptions.filter(t => selectedTranscriptionIds.includes(t.id));
+
+      // Create notes in the notes table based on selected transcriptions
+      const notesToInsert = selectedItems.map(transcription => ({
+        user_id: user!.id,
+        group_id: groupId,
+        title: transcription.title,
+        content: transcription.content,
+        is_private: false
+      }));
+
       const { error } = await supabase
         .from('notes')
-        .update({ group_id: groupId })
-        .in('id', noteIds);
+        .insert(notesToInsert);
 
       if (error) throw error;
 
       toast({
         title: "Notes Added",
-        description: `Successfully added ${noteIds.length} note(s) to ${groupName}.`
+        description: `Successfully added ${selectedTranscriptionIds.length} note(s) to ${groupName}.`
       });
 
       onNotesAdded();
       onClose();
-      setSelectedNotes(new Set());
+      setSelectedTranscriptions(new Set());
     } catch (error: any) {
       console.error('Error adding notes to group:', error);
       toast({
@@ -128,8 +136,15 @@ const AddNotesToGroupDialog: React.FC<AddNotesToGroupDialogProps> = ({
   };
 
   const handleClose = () => {
-    setSelectedNotes(new Set());
+    setSelectedTranscriptions(new Set());
     onClose();
+  };
+
+  const formatDuration = (minutes: number | null) => {
+    if (!minutes) return 'Unknown';
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return hours > 0 ? `${hours}h ${mins}min` : `${mins}min`;
   };
 
   return (
@@ -145,52 +160,51 @@ const AddNotesToGroupDialog: React.FC<AddNotesToGroupDialogProps> = ({
         <div className="space-y-4">
           {loading ? (
             <div className="text-center py-8">Loading your notes...</div>
-          ) : userNotes.length === 0 ? (
+          ) : userTranscriptions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
-              <p>No available notes to add.</p>
-              <p className="text-sm">All your notes are either already in this group or you haven't created any notes yet.</p>
+              <p>No notes available to add.</p>
+              <p className="text-sm">You haven't created any notes yet. Start by creating a transcription from the dashboard.</p>
             </div>
           ) : (
             <>
               <div className="text-sm text-muted-foreground mb-4">
-                Select notes to add to the group. Notes already in this group are not shown.
+                Select notes from your dashboard to add to the group.
               </div>
               
               <div className="grid gap-3 max-h-96 overflow-y-auto">
-                {userNotes.map((note) => (
-                  <Card key={note.id} className="cursor-pointer hover:bg-muted/50">
+                {userTranscriptions.map((transcription) => (
+                  <Card key={transcription.id} className="cursor-pointer hover:bg-muted/50">
                     <CardContent className="p-4">
                       <div className="flex items-start gap-3">
                         <Checkbox
-                          checked={selectedNotes.has(note.id)}
-                          onCheckedChange={(checked) => handleNoteToggle(note.id, !!checked)}
+                          checked={selectedTranscriptions.has(transcription.id)}
+                          onCheckedChange={(checked) => handleTranscriptionToggle(transcription.id, !!checked)}
                           className="mt-1"
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2">
-                            <h4 className="font-medium truncate">{note.title}</h4>
-                            <div className="flex gap-1">
-                              {note.is_private && (
-                                <Badge variant="outline" className="text-xs">
-                                  Private
-                                </Badge>
-                              )}
-                              {note.group_id && note.group_id !== groupId && (
-                                <Badge variant="secondary" className="text-xs">
-                                  In Other Group
-                                </Badge>
-                              )}
-                            </div>
+                            <h4 className="font-medium truncate">{transcription.title}</h4>
+                            <Badge variant="secondary" className="text-xs">
+                              {transcription.source_type}
+                            </Badge>
                           </div>
-                          {note.content && (
+                          {transcription.content && (
                             <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
-                              {note.content}
+                              {transcription.content.substring(0, 150)}...
                             </p>
                           )}
-                          <p className="text-xs text-muted-foreground">
-                            Created {new Date(note.created_at).toLocaleDateString()}
-                          </p>
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <span>
+                              Created {new Date(transcription.created_at).toLocaleDateString()}
+                            </span>
+                            {transcription.duration && (
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {formatDuration(transcription.duration)}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </CardContent>
@@ -200,7 +214,7 @@ const AddNotesToGroupDialog: React.FC<AddNotesToGroupDialogProps> = ({
 
               <div className="flex justify-between items-center pt-4 border-t">
                 <div className="text-sm text-muted-foreground">
-                  {selectedNotes.size} note(s) selected
+                  {selectedTranscriptions.size} note(s) selected
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={handleClose}>
@@ -208,10 +222,10 @@ const AddNotesToGroupDialog: React.FC<AddNotesToGroupDialogProps> = ({
                   </Button>
                   <Button 
                     onClick={handleAddNotes}
-                    disabled={selectedNotes.size === 0 || adding}
+                    disabled={selectedTranscriptions.size === 0 || adding}
                   >
                     <Plus className="h-4 w-4 mr-2" />
-                    {adding ? 'Adding...' : `Add ${selectedNotes.size} Note(s)`}
+                    {adding ? 'Adding...' : `Add ${selectedTranscriptions.size} Note(s)`}
                   </Button>
                 </div>
               </div>
