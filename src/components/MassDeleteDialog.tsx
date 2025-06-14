@@ -81,12 +81,15 @@ const MassDeleteDialog: React.FC<MassDeleteDialogProps> = ({ notes, onNotesDelet
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="destructive" className="bg-red-600 hover:bg-red-700">
+        <Button 
+          variant="outline" 
+          className="border-gray-600/50 hover:bg-gray-800/50 text-gray-300 hover:text-white"
+        >
           <Trash2 className="h-4 w-4 mr-2" />
           Mass Delete
         </Button>
       </DialogTrigger>
-      <DialogContent className="bg-slate-900 border-slate-700 max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="bg-gray-900 border-gray-700 max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-white">Delete Multiple Notes</DialogTitle>
         </DialogHeader>
@@ -96,11 +99,11 @@ const MassDeleteDialog: React.FC<MassDeleteDialogProps> = ({ notes, onNotesDelet
               onClick={handleSelectAll}
               variant="outline"
               size="sm"
-              className="border-white/30 hover:bg-white/10 text-slate-950"
+              className="border-gray-600/50 hover:bg-gray-800/50 text-gray-300 hover:text-white"
             >
               {selectedNotes.size === notes.length ? 'Deselect All' : 'Select All'}
             </Button>
-            <span className="text-slate-300 text-sm">
+            <span className="text-gray-400 text-sm">
               {selectedNotes.size} of {notes.length} selected
             </span>
           </div>
@@ -109,7 +112,7 @@ const MassDeleteDialog: React.FC<MassDeleteDialogProps> = ({ notes, onNotesDelet
             {notes.map((note) => (
               <div
                 key={note.id}
-                className="flex items-center space-x-3 p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
+                className="flex items-center space-x-3 p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800/70 transition-colors"
               >
                 <Checkbox
                   checked={selectedNotes.has(note.id)}
@@ -117,7 +120,7 @@ const MassDeleteDialog: React.FC<MassDeleteDialogProps> = ({ notes, onNotesDelet
                 />
                 <div className="flex-1 min-w-0">
                   <h4 className="text-white font-medium truncate">{note.title}</h4>
-                  <p className="text-slate-400 text-sm">
+                  <p className="text-gray-400 text-sm">
                     {new Date(note.created_at).toLocaleDateString()} • {note.source_type}
                   </p>
                 </div>
@@ -125,7 +128,7 @@ const MassDeleteDialog: React.FC<MassDeleteDialogProps> = ({ notes, onNotesDelet
             ))}
           </div>
 
-          <div className="flex gap-3 pt-4 border-t border-slate-700">
+          <div className="flex gap-3 pt-4 border-t border-gray-700">
             <Button
               onClick={handleMassDelete}
               disabled={selectedNotes.size === 0 || isDeleting}
@@ -147,7 +150,7 @@ const MassDeleteDialog: React.FC<MassDeleteDialogProps> = ({ notes, onNotesDelet
             <Button
               onClick={() => setIsOpen(false)}
               variant="outline"
-              className="border-white/30 hover:bg-white/10 text-slate-950"
+              className="border-gray-600/50 hover:bg-gray-800/50 text-gray-300 hover:text-white"
             >
               Cancel
             </Button>

@@ -1,11 +1,10 @@
-
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, FileText, Calendar, Clock } from 'lucide-react';
+import { Search, Plus, FileText, Clock, Export, Share } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -59,7 +58,7 @@ const Notes: React.FC = () => {
       return data || [];
     },
     enabled: !!user,
-    staleTime: 30000, // Cache for 30 seconds
+    staleTime: 30000,
     refetchOnWindowFocus: false
   });
 
@@ -86,14 +85,23 @@ const Notes: React.FC = () => {
     return hours > 0 ? `${hours}h ${mins}min` : `${mins}min`;
   };
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900">
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
         <NotesHeader onBack={handleBack} onCreateNote={handleCreateNote} />
-        <div className="container mx-auto px-4 py-8">
+        <div className="container mx-auto px-6 py-8">
           <div className="text-center">
             <h2 className="text-2xl font-bold text-red-400 mb-4">Error Loading Notes</h2>
-            <p className="text-purple-200 mb-4">
+            <p className="text-gray-300 mb-4">
               {error instanceof Error ? error.message : 'Failed to load notes'}
             </p>
             <Button 
@@ -109,7 +117,7 @@ const Notes: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-black to-purple-900">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
       <NotesHeader 
         onBack={handleBack} 
         onCreateNote={handleCreateNote}
@@ -132,41 +140,39 @@ const Notes: React.FC = () => {
         }
       />
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-6 py-8">
+        {/* Search Section */}
         <div className="mb-8">
           <div className="mb-6">
             <h2 className="text-3xl font-bold text-white mb-2">All Notes</h2>
-            <p className="text-purple-200">
+            <p className="text-gray-400">
               View and manage all your transcribed notes
             </p>
           </div>
 
-          {/* Enhanced Search Controls */}
-          <div className="flex gap-4 mb-6">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-purple-300 h-4 w-4" />
-              <Input
-                placeholder="Search notes..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-purple-800/50 backdrop-blur-sm border-purple-600/50 text-white placeholder:text-purple-300 focus:border-purple-400 focus:ring-purple-400 shadow-lg"
-              />
-            </div>
+          <div className="relative max-w-md">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+            <Input
+              placeholder="Search notes..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-12 h-12 bg-gray-800/60 backdrop-blur-sm border-gray-600/50 text-white placeholder:text-gray-400 focus:border-purple-500 focus:ring-purple-500 rounded-xl"
+            />
           </div>
         </div>
 
         {isLoading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
-            <p className="text-white">Loading notes...</p>
+          <div className="text-center py-16">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-4"></div>
+            <p className="text-gray-300">Loading notes...</p>
           </div>
         ) : notes.length === 0 ? (
-          <div className="text-center py-12">
-            <FileText className="h-16 w-16 text-purple-300 mx-auto mb-4" />
-            <h3 className="text-2xl font-semibold text-white mb-2">
+          <div className="text-center py-16">
+            <FileText className="h-20 w-20 text-gray-500 mx-auto mb-6" />
+            <h3 className="text-2xl font-semibold text-white mb-3">
               {searchTerm ? 'No notes found' : 'No notes yet'}
             </h3>
-            <p className="text-purple-200 mb-6">
+            <p className="text-gray-400 mb-8 max-w-md mx-auto">
               {searchTerm 
                 ? 'Try adjusting your search criteria.'
                 : 'Create your first note by starting a recording or joining a meeting.'
@@ -183,45 +189,75 @@ const Notes: React.FC = () => {
             )}
           </div>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-4">
             {notes.map((note) => (
               <Card 
                 key={note.id} 
-                className="bg-purple-800/60 backdrop-blur-md border-purple-600/50 cursor-pointer hover:bg-purple-700/60 transition-all duration-200 shadow-xl hover:shadow-2xl hover:shadow-purple-500/20"
+                className="bg-gray-800/80 backdrop-blur-md border-gray-700/50 hover:bg-gray-800/90 transition-all duration-200 rounded-2xl overflow-hidden cursor-pointer"
                 onClick={() => handleNoteClick(note.id)}
               >
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-start mb-2">
-                    <CardTitle className="text-white text-lg line-clamp-2">
-                      {note.title}
-                    </CardTitle>
-                    <Badge variant="secondary" className="text-xs ml-2 bg-purple-600/80 text-purple-100 border-purple-500/50">
-                      {note.source_type}
-                    </Badge>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-purple-200">
-                      <Calendar className="h-3 w-3" />
-                      <span>{new Date(note.created_at).toLocaleDateString()}</span>
-                    </div>
-                    
-                    {note.duration && (
-                      <div className="flex items-center gap-2 text-sm text-purple-200">
-                        <Clock className="h-3 w-3" />
-                        <span>{formatDuration(note.duration)}</span>
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    {/* Left side - Note info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-3">
+                        <Badge 
+                          variant="secondary" 
+                          className="bg-purple-600/20 text-purple-300 border-purple-500/30 px-3 py-1 text-xs font-medium"
+                        >
+                          {note.source_type === 'upload' ? 'Upload' : note.source_type}
+                        </Badge>
+                        {note.duration && (
+                          <div className="flex items-center gap-1 text-gray-400 text-sm">
+                            <Clock className="h-3 w-3" />
+                            <span>{formatDuration(note.duration)}</span>
+                          </div>
+                        )}
                       </div>
-                    )}
+                      
+                      <h3 className="text-xl font-semibold text-white mb-2 line-clamp-1">
+                        {note.title}
+                      </h3>
+                      
+                      {(note.content || note.summary) && (
+                        <p className="text-gray-300 text-sm line-clamp-2 mb-3">
+                          {note.summary || (note.content && note.content.substring(0, 120) + '...')}
+                        </p>
+                      )}
+                      
+                      <div className="flex items-center gap-1 text-gray-400 text-sm">
+                        <Clock className="h-3 w-3" />
+                        <span>{formatDate(note.created_at)}</span>
+                      </div>
+                    </div>
+
+                    {/* Right side - Action buttons */}
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-gray-400 hover:text-white hover:bg-gray-700/50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Handle export
+                        }}
+                      >
+                        <Export className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-gray-400 hover:text-white hover:bg-gray-700/50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Handle share
+                        }}
+                      >
+                        <Share className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                </CardHeader>
-                
-                {(note.content || note.summary) && (
-                  <CardContent className="pt-0">
-                    <p className="text-purple-100 text-sm line-clamp-3">
-                      {note.summary || (note.content && note.content.substring(0, 150) + '...')}
-                    </p>
-                  </CardContent>
-                )}
+                </CardContent>
               </Card>
             ))}
           </div>
