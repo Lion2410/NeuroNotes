@@ -78,26 +78,47 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
     }
   }, [group, isOpen]);
 
-  const getDisplayName = (profile: GroupMember['profile']) => {
+  const getDisplayName = (profile: GroupMember['profile'], userId: string) => {
+    console.log('Getting display name for user:', userId, 'with profile:', profile);
+    
     if (profile?.first_name || profile?.last_name) {
-      return `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
+      const fullName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
+      console.log('Using full name:', fullName);
+      return fullName;
     }
-    return profile?.email || 'Unknown User';
+    
+    if (profile?.email) {
+      console.log('Using email:', profile.email);
+      return profile.email;
+    }
+    
+    // More helpful fallback that shows partial user ID
+    const fallbackName = `User ${userId.slice(0, 8)}...`;
+    console.log('Using fallback name:', fallbackName);
+    return fallbackName;
   };
 
-  const getAvatarFallback = (profile: GroupMember['profile']) => {
+  const getAvatarFallback = (profile: GroupMember['profile'], userId: string) => {
     if (profile?.first_name || profile?.last_name) {
       const firstName = profile.first_name || '';
       const lastName = profile.last_name || '';
       return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
     }
-    return 'U';
+    
+    if (profile?.email) {
+      return profile.email.charAt(0).toUpperCase();
+    }
+    
+    // Use first character of user ID as fallback
+    return userId.charAt(0).toUpperCase();
   };
 
   const fetchMembers = async () => {
     if (!group) return;
     
     setLoadingMembers(true);
+    console.log('Fetching members for group:', group.id);
+    
     try {
       // Get the group members from group_members table
       const { data: memberData, error: memberError } = await supabase
@@ -106,31 +127,40 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
         .eq('group_id', group.id)
         .order('joined_at', { ascending: true });
 
-      if (memberError) throw memberError;
+      if (memberError) {
+        console.error('Error fetching group members:', memberError);
+        throw memberError;
+      }
+
+      console.log('Raw member data:', memberData);
 
       const membersWithProfiles: GroupMember[] = [];
       
       // First, add the creator (they're always a member even if not in group_members table)
+      console.log('Fetching creator profile for user:', group.creator_id);
+      
       try {
         const { data: creatorProfile, error: creatorError } = await supabase
           .from('profiles')
           .select('first_name, last_name, email, avatar_url')
           .eq('id', group.creator_id)
-          .single();
+          .maybeSingle(); // Use maybeSingle instead of single to avoid errors
 
         if (creatorError) {
-          console.log('Creator profile not found, using fallback');
+          console.error('Error fetching creator profile:', creatorError);
         }
+
+        console.log('Creator profile data:', creatorProfile);
 
         membersWithProfiles.push({
           id: 0, // Use 0 as a special ID for creator
           user_id: group.creator_id,
           is_admin: true,
           joined_at: group.created_at,
-          profile: creatorProfile || null
+          profile: creatorProfile
         });
       } catch (error) {
-        console.error('Error fetching creator profile:', error);
+        console.error('Error in creator profile fetch block:', error);
         // Still add creator even without profile data
         membersWithProfiles.push({
           id: 0,
@@ -143,27 +173,36 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
 
       // Then add other members if they exist
       if (memberData && memberData.length > 0) {
+        console.log('Processing additional members:', memberData.length);
+        
         for (const member of memberData) {
           // Skip if this is the creator (already added)
-          if (member.user_id === group.creator_id) continue;
+          if (member.user_id === group.creator_id) {
+            console.log('Skipping creator in member list:', member.user_id);
+            continue;
+          }
+
+          console.log('Fetching profile for member:', member.user_id);
 
           try {
             const { data: profileData, error: profileError } = await supabase
               .from('profiles')
               .select('first_name, last_name, email, avatar_url')
               .eq('id', member.user_id)
-              .single();
+              .maybeSingle(); // Use maybeSingle instead of single
 
             if (profileError) {
-              console.log(`Profile not found for user ${member.user_id}, using fallback`);
+              console.error(`Error fetching profile for user ${member.user_id}:`, profileError);
             }
+
+            console.log(`Profile data for user ${member.user_id}:`, profileData);
 
             membersWithProfiles.push({
               ...member,
-              profile: profileData || null
+              profile: profileData
             });
           } catch (error) {
-            console.error(`Error fetching profile for user ${member.user_id}:`, error);
+            console.error(`Error in profile fetch block for user ${member.user_id}:`, error);
             // Still add member even without profile data
             membersWithProfiles.push({
               ...member,
@@ -173,10 +212,10 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
         }
       }
 
-      console.log('Fetched members with profiles:', membersWithProfiles);
+      console.log('Final members with profiles:', membersWithProfiles);
       setMembers(membersWithProfiles);
     } catch (error: any) {
-      console.error('Error fetching members:', error);
+      console.error('Error in fetchMembers:', error);
       toast({
         title: "Error",
         description: "Failed to load group members.",
@@ -210,7 +249,7 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
             .from('profiles')
             .select('first_name, last_name')
             .eq('id', note.user_id)
-            .single();
+            .maybeSingle(); // Use maybeSingle instead of single
 
           notesWithProfiles.push({
             ...note,
@@ -360,7 +399,7 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
               ) : (
                 <div className="grid gap-3">
                   {members.map((member) => {
-                    const displayName = getDisplayName(member.profile);
+                    const displayName = getDisplayName(member.profile, member.user_id);
                     
                     return (
                       <Card key={`${member.user_id}-${member.id}`}>
@@ -370,7 +409,7 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
                               <Avatar className="h-10 w-10">
                                 <AvatarImage src={member.profile?.avatar_url || undefined} />
                                 <AvatarFallback>
-                                  {getAvatarFallback(member.profile)}
+                                  {getAvatarFallback(member.profile, member.user_id)}
                                 </AvatarFallback>
                               </Avatar>
                               <div>
