@@ -97,25 +97,31 @@ const Notes: React.FC = () => {
 
   if (error) {
     return (
-      <div 
-        className="min-h-screen"
-        style={{
-          background: 'linear-gradient(to bottom, #201840 0%, #551B83 47%, #1E092F 100%)'
-        }}
-      >
-        <NotesHeader onBack={handleBack} onCreateNote={handleCreateNote} />
-        <div className="container mx-auto px-6 py-8">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-red-400 mb-4">Error Loading Notes</h2>
-            <p className="text-white mb-4">
-              {error instanceof Error ? error.message : 'Failed to load notes'}
-            </p>
-            <Button 
-              onClick={() => queryClient.invalidateQueries({ queryKey: ['user-transcriptions'] })}
-              className="bg-white/20 hover:bg-white/30 text-white"
-            >
-              Try Again
-            </Button>
+      <div className="min-h-screen relative">
+        {/* Fixed Background */}
+        <div 
+          className="fixed inset-0 z-0"
+          style={{
+            background: 'linear-gradient(to bottom, #201840 0%, #551B83 47%, #1E092F 100%)'
+          }}
+        />
+        
+        {/* Content Layer */}
+        <div className="relative z-10">
+          <NotesHeader onBack={handleBack} onCreateNote={handleCreateNote} />
+          <div className="container mx-auto px-6 py-8">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-red-400 mb-4">Error Loading Notes</h2>
+              <p className="text-white mb-4">
+                {error instanceof Error ? error.message : 'Failed to load notes'}
+              </p>
+              <Button 
+                onClick={() => queryClient.invalidateQueries({ queryKey: ['user-transcriptions'] })}
+                className="bg-white/20 hover:bg-white/30 text-white"
+              >
+                Try Again
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -123,149 +129,157 @@ const Notes: React.FC = () => {
   }
 
   return (
-    <div 
-      className="min-h-screen"
-      style={{
-        background: 'linear-gradient(to bottom, #201840 0%, #551B83 47%, #1E092F 100%)'
-      }}
-    >
-      <NotesHeader 
-        onBack={handleBack} 
-        onCreateNote={handleCreateNote}
-        showMassDelete={notes.length > 0}
-        massDeleteComponent={
-          notes.length > 0 ? (
-            <MassDeleteDialog 
-              notes={notes.map(note => ({
-                id: note.id,
-                title: note.title,
-                content: note.content || '',
-                created_at: note.created_at,
-                updated_at: note.updated_at,
-                source_type: note.source_type,
-                duration: note.duration
-              }))}
-              onNotesDeleted={handleNotesDeleted}
-            />
-          ) : null
-        }
+    <div className="min-h-screen relative">
+      {/* Fixed Background */}
+      <div 
+        className="fixed inset-0 z-0"
+        style={{
+          background: 'linear-gradient(to bottom, #201840 0%, #551B83 47%, #1E092F 100%)'
+        }}
       />
+      
+      {/* Content Layer */}
+      <div className="relative z-10">
+        <NotesHeader 
+          onBack={handleBack} 
+          onCreateNote={handleCreateNote}
+          showMassDelete={notes.length > 0}
+          massDeleteComponent={
+            notes.length > 0 ? (
+              <MassDeleteDialog 
+                notes={notes.map(note => ({
+                  id: note.id,
+                  title: note.title,
+                  content: note.content || '',
+                  created_at: note.created_at,
+                  updated_at: note.updated_at,
+                  source_type: note.source_type,
+                  duration: note.duration
+                }))}
+                onNotesDeleted={handleNotesDeleted}
+              />
+            ) : null
+          }
+        />
 
-      <div className="container mx-auto px-6 py-8">
-        {/* Search Section */}
-        <div className="mb-8">
-          <div className="relative max-w-md">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white/70 h-5 w-5" />
-            <Input
-              placeholder="Search notes..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-12 h-12 bg-white/10 backdrop-blur-sm border-white/20 text-white placeholder:text-white/70 focus:border-white/40 focus:ring-white/40 rounded-xl"
-            />
+        <div className="container mx-auto px-6 py-8">
+          {/* Search Section */}
+          <div className="mb-8">
+            <div className="relative max-w-md">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white/70 h-5 w-5" />
+              <Input
+                placeholder="Search notes..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-12 h-12 bg-white/10 backdrop-blur-sm border-white/20 text-white placeholder:text-white/70 focus:border-white/40 focus:ring-white/40 rounded-xl"
+              />
+            </div>
           </div>
-        </div>
 
-        {isLoading ? (
-          <div className="text-center py-16">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
-            <p className="text-white">Loading notes...</p>
-          </div>
-        ) : notes.length === 0 ? (
-          <div className="text-center py-16">
-            <FileText className="h-20 w-20 text-white/50 mx-auto mb-6" />
-            <h3 className="text-2xl font-semibold text-white mb-3">
-              {searchTerm ? 'No notes found' : 'No notes yet'}
-            </h3>
-            <p className="text-white/70 mb-8 max-w-md mx-auto">
-              {searchTerm 
-                ? 'Try adjusting your search criteria.'
-                : 'Create your first note by starting a recording or joining a meeting.'
-              }
-            </p>
-            {!searchTerm && (
-              <Button 
-                onClick={handleCreateNote}
-                className="bg-white/20 hover:bg-white/30 text-white"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Create Your First Note
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {notes.map((note) => (
-              <Card 
-                key={note.id} 
-                className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-200 rounded-2xl overflow-hidden cursor-pointer"
-                onClick={() => handleNoteClick(note.id)}
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    {/* Left side - Note info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-3">
+          {isLoading ? (
+            <div className="text-center py-16">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
+              <p className="text-white">Loading notes...</p>
+            </div>
+          ) : notes.length === 0 ? (
+            <div className="text-center py-16">
+              <FileText className="h-20 w-20 text-white/50 mx-auto mb-6" />
+              <h3 className="text-2xl font-semibold text-white mb-3">
+                {searchTerm ? 'No notes found' : 'No notes yet'}
+              </h3>
+              <p className="text-white/70 mb-8 max-w-md mx-auto">
+                {searchTerm 
+                  ? 'Try adjusting your search criteria.'
+                  : 'Create your first note by starting a recording or joining a meeting.'
+                }
+              </p>
+              {!searchTerm && (
+                <Button 
+                  onClick={handleCreateNote}
+                  className="bg-white/20 hover:bg-white/30 text-white"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Your First Note
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {notes.map((note) => (
+                <Card 
+                  key={note.id} 
+                  className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-200 rounded-2xl overflow-hidden cursor-pointer group"
+                  onClick={() => handleNoteClick(note.id)}
+                >
+                  <CardContent className="p-4">
+                    <div className="space-y-3">
+                      {/* Header with badge and duration */}
+                      <div className="flex items-center justify-between">
                         <Badge 
                           variant="secondary" 
-                          className="bg-white/20 text-white border-white/30 px-3 py-1 text-xs font-medium"
+                          className="bg-white/20 text-white border-white/30 px-2 py-1 text-xs font-medium"
                         >
                           {note.source_type === 'upload' ? 'Upload' : note.source_type}
                         </Badge>
                         {note.duration && (
-                          <div className="flex items-center gap-1 text-white/70 text-sm">
+                          <div className="flex items-center gap-1 text-white/70 text-xs">
                             <Clock className="h-3 w-3" />
                             <span>{formatDuration(note.duration)}</span>
                           </div>
                         )}
                       </div>
                       
-                      <h3 className="text-xl font-semibold text-white mb-2 line-clamp-1">
+                      {/* Title */}
+                      <h3 className="text-lg font-semibold text-white line-clamp-2 min-h-[2.5rem]">
                         {note.title}
                       </h3>
                       
+                      {/* Content preview */}
                       {(note.content || note.summary) && (
-                        <p className="text-white/80 text-sm line-clamp-2 mb-3">
-                          {note.summary || (note.content && note.content.substring(0, 120) + '...')}
+                        <p className="text-white/80 text-sm line-clamp-3 min-h-[3.75rem]">
+                          {note.summary || (note.content && note.content.substring(0, 80) + '...')}
                         </p>
                       )}
                       
-                      <div className="flex items-center gap-1 text-white/70 text-sm">
-                        <Clock className="h-3 w-3" />
-                        <span>{formatDate(note.created_at)}</span>
+                      {/* Footer with date and actions */}
+                      <div className="flex items-center justify-between pt-2">
+                        <div className="flex items-center gap-1 text-white/70 text-xs">
+                          <Clock className="h-3 w-3" />
+                          <span>{formatDate(note.created_at)}</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-white/70 hover:text-white hover:bg-white/10 h-8 w-8 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Handle export
+                            }}
+                          >
+                            <Download className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-white/70 hover:text-white hover:bg-white/10 h-8 w-8 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Handle share
+                            }}
+                          >
+                            <Share className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
-
-                    {/* Right side - Action buttons */}
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-white/70 hover:text-white hover:bg-white/10"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Handle export
-                        }}
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-white/70 hover:text-white hover:bg-white/10"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Handle share
-                        }}
-                      >
-                        <Share className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

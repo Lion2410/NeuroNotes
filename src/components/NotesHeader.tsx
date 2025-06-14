@@ -18,7 +18,7 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
 }) => {
   return (
     <div 
-      className="backdrop-blur-sm border-b border-gray-700/50 sticky top-0 z-10"
+      className="backdrop-blur-sm border-b border-gray-700/50 sticky top-0 z-20"
       style={{
         background: 'linear-gradient(to bottom, #2E3048 0%, #4E3171 47%, #683391 100%)'
       }}
