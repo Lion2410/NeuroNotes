@@ -1,12 +1,12 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Users, FileText, UserPlus, Settings, Plus } from 'lucide-react';
+import { Users, FileText, UserPlus, Plus } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -67,7 +67,7 @@ const OptimizedGroupDetailsDialog: React.FC<OptimizedGroupDetailsDialogProps> = 
     queryFn: async (): Promise<GroupMember[]> => {
       if (!group) return [];
 
-      console.log('Fetching group members using optimized view...');
+      console.log('Fetching group members using optimized view for group:', group.id);
       
       const { data, error } = await supabase
         .from('group_members_with_profiles')
@@ -79,6 +79,8 @@ const OptimizedGroupDetailsDialog: React.FC<OptimizedGroupDetailsDialogProps> = 
         console.error('Error fetching group members:', error);
         throw error;
       }
+
+      console.log('Group members fetched:', data?.length || 0);
 
       // Also include the creator if they're not in the members list
       const creatorIsMember = data?.some(member => member.user_id === group.creator_id);
@@ -118,20 +120,55 @@ const OptimizedGroupDetailsDialog: React.FC<OptimizedGroupDetailsDialogProps> = 
     queryFn: async (): Promise<GroupNote[]> => {
       if (!group) return [];
 
-      console.log('Fetching group notes using optimized view...');
+      console.log('Fetching group notes for group:', group.id);
       
-      const { data, error } = await supabase
+      // First try the optimized view
+      const { data: optimizedData, error: optimizedError } = await supabase
         .from('notes_with_profiles')
         .select('*')
         .eq('group_id', group.id)
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching group notes:', error);
-        throw error;
+      if (optimizedError) {
+        console.error('Error fetching from optimized view, trying direct query:', optimizedError);
+        
+        // Fallback to direct query
+        const { data: notesData, error: notesError } = await supabase
+          .from('notes')
+          .select('*')
+          .eq('group_id', group.id)
+          .order('created_at', { ascending: false });
+
+        if (notesError) {
+          console.error('Error fetching group notes:', notesError);
+          throw notesError;
+        }
+
+        // Get profiles for each note
+        const notesWithProfiles: GroupNote[] = [];
+        if (notesData) {
+          for (const note of notesData) {
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('first_name, last_name, email')
+              .eq('id', note.user_id)
+              .maybeSingle();
+
+            notesWithProfiles.push({
+              ...note,
+              first_name: profileData?.first_name || null,
+              last_name: profileData?.last_name || null,
+              email: profileData?.email || null
+            });
+          }
+        }
+
+        console.log('Group notes fetched (fallback):', notesWithProfiles.length);
+        return notesWithProfiles;
       }
 
-      return data || [];
+      console.log('Group notes fetched (optimized):', optimizedData?.length || 0);
+      return optimizedData || [];
     },
     enabled: !!group && isOpen,
     staleTime: 30000
@@ -172,7 +209,7 @@ const OptimizedGroupDetailsDialog: React.FC<OptimizedGroupDetailsDialogProps> = 
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-white dark:bg-slate-800">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />

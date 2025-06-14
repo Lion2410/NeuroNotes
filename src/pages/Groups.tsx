@@ -1,16 +1,17 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Plus, UserPlus, Settings } from 'lucide-react';
+import { Users, Plus, UserPlus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import CreateGroupDialog from '@/components/groups/CreateGroupDialog';
 import JoinGroupTab from '@/components/groups/JoinGroupTab';
 import GroupsList from '@/components/groups/GroupsList';
+import GroupsHeader from '@/components/groups/GroupsHeader';
 
 interface GroupWithStats {
   id: number;
@@ -75,13 +76,18 @@ const Groups: React.FC = () => {
   if (error) {
     console.error('Error in Groups component:', error);
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-red-600 mb-4">Error Loading Groups</h2>
-          <p className="text-gray-600 mb-4">
-            {error instanceof Error ? error.message : 'Failed to load groups'}
-          </p>
-          <Button onClick={handleRefresh}>Try Again</Button>
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
+        <div className="container mx-auto px-4 py-8">
+          <GroupsHeader />
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-red-400 mb-4">Error Loading Groups</h2>
+            <p className="text-slate-300 mb-4">
+              {error instanceof Error ? error.message : 'Failed to load groups'}
+            </p>
+            <Button onClick={handleRefresh} className="bg-purple-600 hover:bg-purple-700">
+              Try Again
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -90,20 +96,15 @@ const Groups: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
       <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Groups</h1>
-          <p className="text-slate-300">
-            Collaborate with others by creating or joining groups
-          </p>
-        </div>
+        <GroupsHeader />
 
         <Tabs defaultValue="my-groups" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-8">
-            <TabsTrigger value="my-groups" className="flex items-center gap-2">
+          <TabsList className="grid w-full grid-cols-2 mb-8 bg-white/10 border-white/20">
+            <TabsTrigger value="my-groups" className="flex items-center gap-2 text-white data-[state=active]:bg-white/20 data-[state=active]:text-white">
               <Users className="h-4 w-4" />
               My Groups
             </TabsTrigger>
-            <TabsTrigger value="join-group" className="flex items-center gap-2">
+            <TabsTrigger value="join-group" className="flex items-center gap-2 text-white data-[state=active]:bg-white/20 data-[state=active]:text-white">
               <UserPlus className="h-4 w-4" />
               Join Group
             </TabsTrigger>

@@ -78,7 +78,7 @@ const GroupsList: React.FC<GroupsListProps> = ({
                 variant="outline" 
                 size="sm" 
                 onClick={() => handleViewGroup(group)} 
-                className="border-white/30 hover:bg-white/10 text-slate-950"
+                className="border-white/30 hover:bg-white/10 text-white hover:text-white"
               >
                 View
               </Button>
