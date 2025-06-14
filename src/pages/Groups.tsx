@@ -76,17 +76,28 @@ const Groups: React.FC = () => {
   if (error) {
     console.error('Error in Groups component:', error);
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
-        <div className="container mx-auto px-4 py-8">
+      <div className="min-h-screen relative">
+        {/* Fixed Background */}
+        <div 
+          className="fixed inset-0 z-0"
+          style={{
+            background: 'linear-gradient(to bottom right, #201840 0%, #551B83 47%, #1E092F 100%)'
+          }}
+        />
+        
+        {/* Content Layer */}
+        <div className="relative z-10">
           <GroupsHeader />
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-red-400 mb-4">Error Loading Groups</h2>
-            <p className="text-slate-300 mb-4">
-              {error instanceof Error ? error.message : 'Failed to load groups'}
-            </p>
-            <Button onClick={handleRefresh} className="bg-purple-600 hover:bg-purple-700">
-              Try Again
-            </Button>
+          <div className="container mx-auto px-4 py-8">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-red-400 mb-4">Error Loading Groups</h2>
+              <p className="text-slate-300 mb-4">
+                {error instanceof Error ? error.message : 'Failed to load groups'}
+              </p>
+              <Button onClick={handleRefresh} className="bg-purple-600 hover:bg-purple-700">
+                Try Again
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -94,68 +105,79 @@ const Groups: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
-      <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen relative">
+      {/* Fixed Background */}
+      <div 
+        className="fixed inset-0 z-0"
+        style={{
+          background: 'linear-gradient(to bottom right, #201840 0%, #551B83 47%, #1E092F 100%)'
+        }}
+      />
+      
+      {/* Content Layer */}
+      <div className="relative z-10">
         <GroupsHeader />
 
-        <Tabs defaultValue="my-groups" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-8 bg-white/10 border-white/20">
-            <TabsTrigger value="my-groups" className="flex items-center gap-2 text-white data-[state=active]:bg-white/20 data-[state=active]:text-white">
-              <Users className="h-4 w-4" />
-              My Groups
-            </TabsTrigger>
-            <TabsTrigger value="join-group" className="flex items-center gap-2 text-white data-[state=active]:bg-white/20 data-[state=active]:text-white">
-              <UserPlus className="h-4 w-4" />
-              Join Group
-            </TabsTrigger>
-          </TabsList>
+        <div className="container mx-auto px-4 py-8">
+          <Tabs defaultValue="my-groups" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-8 bg-white/10 border-white/20">
+              <TabsTrigger value="my-groups" className="flex items-center gap-2 text-white data-[state=active]:bg-white/20 data-[state=active]:text-white">
+                <Users className="h-4 w-4" />
+                My Groups
+              </TabsTrigger>
+              <TabsTrigger value="join-group" className="flex items-center gap-2 text-white data-[state=active]:bg-white/20 data-[state=active]:text-white">
+                <UserPlus className="h-4 w-4" />
+                Join Group
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="my-groups">
-            <Card className="bg-white/10 backdrop-blur-md border-white/20">
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle className="text-white">My Groups</CardTitle>
-                    <CardDescription className="text-slate-300">
-                      Groups you've created or joined
-                    </CardDescription>
+            <TabsContent value="my-groups">
+              <Card className="bg-white/10 backdrop-blur-md border-white/20">
+                <CardHeader>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <CardTitle className="text-white">My Groups</CardTitle>
+                      <CardDescription className="text-slate-300">
+                        Groups you've created or joined
+                      </CardDescription>
+                    </div>
+                    <Button 
+                      onClick={handleCreateGroup}
+                      className="bg-purple-600 hover:bg-purple-700 text-white"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create Group
+                    </Button>
                   </div>
-                  <Button 
-                    onClick={handleCreateGroup}
-                    className="bg-purple-600 hover:bg-purple-700 text-white"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Group
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <div className="text-center py-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
-                    <p className="text-white">Loading groups...</p>
-                  </div>
-                ) : (
-                  <GroupsList 
-                    groups={groups} 
-                    onRefresh={handleRefresh}
-                    onCreateGroup={handleCreateGroup}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+                </CardHeader>
+                <CardContent>
+                  {isLoading ? (
+                    <div className="text-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
+                      <p className="text-white">Loading groups...</p>
+                    </div>
+                  ) : (
+                    <GroupsList 
+                      groups={groups} 
+                      onRefresh={handleRefresh}
+                      onCreateGroup={handleCreateGroup}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-          <TabsContent value="join-group">
-            <JoinGroupTab onJoinSuccess={handleRefresh} />
-          </TabsContent>
-        </Tabs>
+            <TabsContent value="join-group">
+              <JoinGroupTab onJoinSuccess={handleRefresh} />
+            </TabsContent>
+          </Tabs>
 
-        <CreateGroupDialog
-          isOpen={createDialogOpen}
-          onClose={() => setCreateDialogOpen(false)}
-          onGroupCreated={handleGroupCreated}
-        />
+          <CreateGroupDialog
+            isOpen={createDialogOpen}
+            onClose={() => setCreateDialogOpen(false)}
+            onGroupCreated={handleGroupCreated}
+          />
+        </div>
       </div>
     </div>
   );
