@@ -1,10 +1,8 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Mic, Users, FileText, Shield, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-
 const Index = () => {
   return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       {/* Header */}
@@ -75,10 +73,8 @@ const Index = () => {
             <Card className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-300 hover:scale-105">
               <CardHeader>
                 <Users className="h-12 w-12 text-purple-400 mb-4" />
-                <CardTitle className="text-white">Team Collaboration</CardTitle>
-                <CardDescription className="text-slate-300">
-                  Edit transcripts together in real-time with your team members
-                </CardDescription>
+                <CardTitle className="text-white">Group Collaboration</CardTitle>
+                <CardDescription className="text-slate-300">View transcripts together in real-time with your group members</CardDescription>
               </CardHeader>
             </Card>
 
@@ -136,5 +132,4 @@ const Index = () => {
       </footer>
     </div>;
 };
-
 export default Index;
