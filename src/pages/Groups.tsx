@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, UserPlus, Users } from 'lucide-react';
@@ -40,10 +39,17 @@ const Groups = () => {
     try {
       console.log('Fetching groups for user:', user?.id);
       
-      // First get user's memberships to know which groups they're in
+      // First, let's debug by checking ALL group_members data
+      const { data: allMemberships, error: allMembershipsError } = await supabase
+        .from('group_members')
+        .select('*');
+      
+      console.log('ALL group_members data:', allMemberships);
+      
+      // Then check specifically for this user
       const { data: membershipData, error: membershipError } = await supabase
         .from('group_members')
-        .select('group_id, is_admin')
+        .select('group_id, is_admin, user_id, joined_at')
         .eq('user_id', user?.id);
 
       if (membershipError) {
@@ -51,18 +57,37 @@ const Groups = () => {
         throw membershipError;
       }
 
-      console.log('User memberships:', membershipData);
+      console.log('User memberships for user', user?.id, ':', membershipData);
 
-      if (!membershipData || membershipData.length === 0) {
-        console.log('User has no group memberships');
+      // Let's also check groups created by this user
+      const { data: createdGroups, error: createdGroupsError } = await supabase
+        .from('groups')
+        .select('id, name, creator_id, created_at')
+        .eq('creator_id', user?.id);
+        
+      console.log('Groups created by user:', createdGroups);
+
+      // Combine groups where user is member OR creator
+      let userGroupIds: number[] = [];
+      
+      if (membershipData && membershipData.length > 0) {
+        userGroupIds = membershipData.map(m => m.group_id);
+      }
+      
+      if (createdGroups && createdGroups.length > 0) {
+        const createdGroupIds = createdGroups.map(g => g.id);
+        userGroupIds = [...new Set([...userGroupIds, ...createdGroupIds])];
+      }
+
+      console.log('Combined user group IDs:', userGroupIds);
+
+      if (userGroupIds.length === 0) {
+        console.log('User has no group access');
         setGroups([]);
         return;
       }
 
-      // Get the group IDs where user is a member
-      const userGroupIds = membershipData.map(m => m.group_id);
-      
-      // Fetch only the groups where the user is a member
+      // Fetch all groups where user has access
       const { data: userGroups, error: groupsError } = await supabase
         .from('groups')
         .select('id, name, creator_id, created_at')
@@ -85,9 +110,10 @@ const Groups = () => {
             .select('*', { count: 'exact', head: true })
             .eq('group_id', group.id);
 
-          // Check if user is admin
-          const membership = membershipData.find(m => m.group_id === group.id);
-          const isAdmin = membership?.is_admin || false;
+          // Check if user is admin (either through membership or being creator)
+          const membership = membershipData?.find(m => m.group_id === group.id);
+          const isCreator = group.creator_id === user?.id;
+          const isAdmin = isCreator || (membership?.is_admin || false);
 
           return {
             id: group.id,
@@ -145,13 +171,14 @@ const Groups = () => {
       console.log('Group created successfully:', newGroup);
 
       // Add creator as admin member
-      const { error: memberError } = await supabase
+      const { data: memberData, error: memberError } = await supabase
         .from('group_members')
         .insert({
           user_id: user.id,
           group_id: newGroup.id,
           is_admin: true
-        });
+        })
+        .select();
 
       if (memberError) {
         console.error('Member creation error:', memberError);
@@ -161,10 +188,10 @@ const Groups = () => {
           .delete()
           .eq('id', newGroup.id);
         
-        throw new Error('Failed to add creator as group member');
+        throw new Error('Failed to add creator as group member: ' + memberError.message);
       }
 
-      console.log('Creator successfully added as admin member');
+      console.log('Creator successfully added as admin member:', memberData);
       
       toast({
         title: "Group Created",
