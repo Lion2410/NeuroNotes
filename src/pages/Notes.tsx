@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, FileText, Clock, Export, Share } from 'lucide-react';
+import { Search, Plus, FileText, Clock, Download, Share } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -242,7 +242,7 @@ const Notes: React.FC = () => {
                           // Handle export
                         }}
                       >
-                        <Export className="h-4 w-4" />
+                        <Download className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
