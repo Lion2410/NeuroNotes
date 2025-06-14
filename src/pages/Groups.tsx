@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, UserPlus, Users } from 'lucide-react';
@@ -38,6 +39,19 @@ const Groups = () => {
   const fetchGroups = async () => {
     try {
       console.log('Fetching groups for user:', user?.id);
+      
+      // Get user's profile information
+      const { data: userProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('id', user?.id)
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching user profile:', profileError);
+      }
+
+      console.log('User profile:', userProfile);
       
       // First, let's debug by checking ALL group_members data
       const { data: allMemberships, error: allMembershipsError } = await supabase
@@ -115,12 +129,15 @@ const Groups = () => {
           const isCreator = group.creator_id === user?.id;
           const isAdmin = isCreator || (membership?.is_admin || false);
 
+          // For groups created by the user, add 1 to member count to include themselves
+          const adjustedMemberCount = isCreator ? (count || 0) + 1 : (count || 0);
+
           return {
             id: group.id,
             name: group.name,
             creator_id: group.creator_id,
             created_at: group.created_at,
-            member_count: count || 0,
+            member_count: adjustedMemberCount,
             is_admin: isAdmin
           };
         })
@@ -170,32 +187,18 @@ const Groups = () => {
 
       console.log('Group created successfully:', newGroup);
 
-      // Add creator as admin member
-      const { data: memberData, error: memberError } = await supabase
-        .from('group_members')
-        .insert({
-          user_id: user.id,
-          group_id: newGroup.id,
-          is_admin: true
-        })
-        .select();
+      // Get user's profile name for the success message
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('id', user.id)
+        .single();
 
-      if (memberError) {
-        console.error('Member creation error:', memberError);
-        // If adding member fails, clean up by deleting the group
-        await supabase
-          .from('groups')
-          .delete()
-          .eq('id', newGroup.id);
-        
-        throw new Error('Failed to add creator as group member: ' + memberError.message);
-      }
-
-      console.log('Creator successfully added as admin member:', memberData);
+      const userName = userProfile ? `${userProfile.first_name} ${userProfile.last_name}`.trim() : 'You';
       
       toast({
         title: "Group Created",
-        description: `"${groupName}" has been created successfully and you've been added as an admin.`
+        description: `"${groupName}" has been created successfully with ${userName} as admin (1 member).`
       });
 
       // Refresh the list
