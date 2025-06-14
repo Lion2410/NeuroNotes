@@ -143,13 +143,6 @@ const Notes: React.FC = () => {
       <div className="container mx-auto px-6 py-8">
         {/* Search Section */}
         <div className="mb-8">
-          <div className="mb-6">
-            <h2 className="text-3xl font-bold text-white mb-2">All Notes</h2>
-            <p className="text-gray-400">
-              View and manage all your transcribed notes
-            </p>
-          </div>
-
           <div className="relative max-w-md">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
             <Input
