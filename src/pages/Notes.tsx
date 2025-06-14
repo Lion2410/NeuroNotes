@@ -5,23 +5,29 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, FileText, Users, Calendar, User } from 'lucide-react';
+import { Search, Plus, FileText, Users, Calendar, User, ArrowLeft } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 
-interface Note {
+interface GroupNote {
   id: number;
+  group_id: number;
+  transcription_id: string;
+  added_by: string;
+  added_at: string;
   title: string;
   content: string | null;
-  is_private: boolean;
-  created_at: string;
-  updated_at: string;
-  user_id: string;
-  group_id: number;
+  source_type: string;
+  duration: number | null;
+  transcription_created_at: string;
+  transcription_owner: string;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
+  owner_first_name: string | null;
+  owner_last_name: string | null;
+  owner_email: string | null;
 }
 
 interface Group {
@@ -58,18 +64,18 @@ const Notes: React.FC = () => {
     staleTime: 60000 // Cache for 1 minute
   });
 
-  // Fetch notes using the optimized view
+  // Fetch group notes using the new optimized view
   const { data: notes = [], isLoading, error } = useQuery({
-    queryKey: ['user-notes', user?.id, selectedGroupId, searchTerm],
-    queryFn: async (): Promise<Note[]> => {
+    queryKey: ['group-notes-all', user?.id, selectedGroupId, searchTerm],
+    queryFn: async (): Promise<GroupNote[]> => {
       if (!user) throw new Error('User not authenticated');
 
-      console.log('Fetching notes using optimized view...');
+      console.log('Fetching group notes using optimized view...');
       
       let query = supabase
-        .from('notes_with_profiles')
+        .from('group_notes_with_details')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('added_at', { ascending: false });
 
       // Apply group filter
       if (selectedGroupId !== 'all') {
@@ -84,11 +90,11 @@ const Notes: React.FC = () => {
       const { data, error } = await query;
 
       if (error) {
-        console.error('Error fetching notes:', error);
+        console.error('Error fetching group notes:', error);
         throw error;
       }
 
-      console.log('Notes fetched:', data?.length || 0);
+      console.log('Group notes fetched:', data?.length || 0);
       return data || [];
     },
     enabled: !!user,
@@ -96,22 +102,36 @@ const Notes: React.FC = () => {
     refetchOnWindowFocus: false
   });
 
+  const handleBack = () => {
+    navigate('/groups');
+  };
+
   const handleCreateNote = () => {
     navigate('/note-editor');
   };
 
-  const handleNoteClick = (noteId: number) => {
-    navigate(`/note-editor/${noteId}`);
+  const handleNoteClick = (transcriptionId: string) => {
+    navigate(`/transcript-editor/${transcriptionId}`);
   };
 
-  const getAuthorName = (note: Note) => {
+  const getAuthorName = (note: GroupNote) => {
     if (note.first_name || note.last_name) {
       return `${note.first_name || ''} ${note.last_name || ''}`.trim();
     }
     if (note.email) {
       return note.email;
     }
-    return `User ${note.user_id.slice(0, 8)}...`;
+    return `User ${note.added_by.slice(0, 8)}...`;
+  };
+
+  const getOwnerName = (note: GroupNote) => {
+    if (note.owner_first_name || note.owner_last_name) {
+      return `${note.owner_first_name || ''} ${note.owner_last_name || ''}`.trim();
+    }
+    if (note.owner_email) {
+      return note.owner_email;
+    }
+    return `User ${note.transcription_owner.slice(0, 8)}...`;
   };
 
   const getGroupName = (groupId: number) => {
@@ -119,19 +139,22 @@ const Notes: React.FC = () => {
     return group?.name || 'Unknown Group';
   };
 
-  const filteredNotes = notes;
-
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-red-600 mb-4">Error Loading Notes</h2>
-          <p className="text-gray-600 mb-4">
-            {error instanceof Error ? error.message : 'Failed to load notes'}
-          </p>
-          <Button onClick={() => queryClient.invalidateQueries({ queryKey: ['user-notes'] })}>
-            Try Again
-          </Button>
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-red-400 mb-4">Error Loading Notes</h2>
+            <p className="text-slate-300 mb-4">
+              {error instanceof Error ? error.message : 'Failed to load notes'}
+            </p>
+            <Button 
+              onClick={() => queryClient.invalidateQueries({ queryKey: ['group-notes-all'] })}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              Try Again
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -141,20 +164,25 @@ const Notes: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
+          <div className="flex items-center gap-4 mb-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleBack}
+              className="text-white hover:bg-white/10"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Groups
+            </Button>
+          </div>
+          
           <div className="flex justify-between items-center mb-6">
             <div>
-              <h1 className="text-4xl font-bold text-white mb-2">Notes</h1>
+              <h1 className="text-4xl font-bold text-white mb-2">Group Notes</h1>
               <p className="text-slate-300">
-                Manage and organize your group notes
+                Browse notes that have been shared in your groups
               </p>
             </div>
-            <Button 
-              onClick={handleCreateNote}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Create Note
-            </Button>
           </div>
 
           {/* Search and Filter Controls */}
@@ -162,7 +190,7 @@ const Notes: React.FC = () => {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
               <Input
-                placeholder="Search notes..."
+                placeholder="Search group notes..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-slate-400"
@@ -188,33 +216,33 @@ const Notes: React.FC = () => {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-4"></div>
             <p className="text-white">Loading notes...</p>
           </div>
-        ) : filteredNotes.length === 0 ? (
+        ) : notes.length === 0 ? (
           <div className="text-center py-12">
             <FileText className="h-16 w-16 text-slate-400 mx-auto mb-4" />
             <h3 className="text-2xl font-semibold text-white mb-2">
-              {searchTerm || selectedGroupId !== 'all' ? 'No notes found' : 'No notes yet'}
+              {searchTerm || selectedGroupId !== 'all' ? 'No notes found' : 'No group notes yet'}
             </h3>
             <p className="text-slate-300 mb-6">
               {searchTerm || selectedGroupId !== 'all' 
                 ? 'Try adjusting your search or filter criteria.'
-                : 'Create your first note to get started.'
+                : 'Group notes will appear here when members add their transcriptions to groups.'
               }
             </p>
             <Button 
-              onClick={handleCreateNote}
+              onClick={handleBack}
               className="bg-purple-600 hover:bg-purple-700 text-white"
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Create Note
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Groups
             </Button>
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredNotes.map((note) => (
+            {notes.map((note) => (
               <Card 
                 key={note.id} 
                 className="bg-white/10 backdrop-blur-md border-white/20 cursor-pointer hover:bg-white/20 transition-all duration-200"
-                onClick={() => handleNoteClick(note.id)}
+                onClick={() => handleNoteClick(note.transcription_id)}
               >
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start mb-2">
@@ -222,14 +250,12 @@ const Notes: React.FC = () => {
                       {note.title}
                     </CardTitle>
                     <div className="flex gap-1 ml-2">
-                      {note.is_private && (
-                        <Badge variant="outline" className="text-xs border-yellow-400 text-yellow-400">
-                          Private
-                        </Badge>
-                      )}
-                      {note.user_id === user?.id && (
-                        <Badge variant="secondary" className="text-xs">
-                          Mine
+                      <Badge variant="secondary" className="text-xs">
+                        {note.source_type}
+                      </Badge>
+                      {note.transcription_owner === user?.id && (
+                        <Badge variant="default" className="text-xs">
+                          Your Note
                         </Badge>
                       )}
                     </div>
@@ -243,12 +269,12 @@ const Notes: React.FC = () => {
                     
                     <div className="flex items-center gap-2 text-sm text-slate-300">
                       <User className="h-3 w-3" />
-                      <span className="truncate">{getAuthorName(note)}</span>
+                      <span className="truncate">By {getOwnerName(note)}</span>
                     </div>
                     
                     <div className="flex items-center gap-2 text-sm text-slate-300">
                       <Calendar className="h-3 w-3" />
-                      <span>{new Date(note.created_at).toLocaleDateString()}</span>
+                      <span>Added {new Date(note.added_at).toLocaleDateString()}</span>
                     </div>
                   </div>
                 </CardHeader>

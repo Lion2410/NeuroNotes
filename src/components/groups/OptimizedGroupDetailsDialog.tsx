@@ -6,11 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Users, FileText, UserPlus, Plus } from 'lucide-react';
+import { Users, FileText, UserPlus, Plus, ExternalLink, Clock } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import AddNotesToGroupDialog from './AddNotesToGroupDialog';
 
 interface GroupMember {
@@ -27,14 +28,22 @@ interface GroupMember {
 
 interface GroupNote {
   id: number;
+  group_id: number;
+  transcription_id: string;
+  added_by: string;
+  added_at: string;
   title: string;
   content: string | null;
-  is_private: boolean;
-  created_at: string;
-  user_id: string;
+  source_type: string;
+  duration: number | null;
+  transcription_created_at: string;
+  transcription_owner: string;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
+  owner_first_name: string | null;
+  owner_last_name: string | null;
+  owner_email: string | null;
 }
 
 interface Group {
@@ -60,6 +69,7 @@ const OptimizedGroupDetailsDialog: React.FC<OptimizedGroupDetailsDialogProps> = 
   const [showAddNotesDialog, setShowAddNotesDialog] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   // Fetch group members using optimized view
   const { data: members = [], isLoading: loadingMembers, refetch: refetchMembers } = useQuery({
@@ -114,7 +124,7 @@ const OptimizedGroupDetailsDialog: React.FC<OptimizedGroupDetailsDialogProps> = 
     staleTime: 30000
   });
 
-  // Fetch group notes using optimized view
+  // Fetch group notes using the new optimized view with transcription details
   const { data: notes = [], isLoading: loadingNotes, refetch: refetchNotes } = useQuery({
     queryKey: ['group-notes', group?.id],
     queryFn: async (): Promise<GroupNote[]> => {
@@ -122,53 +132,19 @@ const OptimizedGroupDetailsDialog: React.FC<OptimizedGroupDetailsDialogProps> = 
 
       console.log('Fetching group notes for group:', group.id);
       
-      // First try the optimized view
-      const { data: optimizedData, error: optimizedError } = await supabase
-        .from('notes_with_profiles')
+      const { data, error } = await supabase
+        .from('group_notes_with_details')
         .select('*')
         .eq('group_id', group.id)
-        .order('created_at', { ascending: false });
+        .order('added_at', { ascending: false });
 
-      if (optimizedError) {
-        console.error('Error fetching from optimized view, trying direct query:', optimizedError);
-        
-        // Fallback to direct query
-        const { data: notesData, error: notesError } = await supabase
-          .from('notes')
-          .select('*')
-          .eq('group_id', group.id)
-          .order('created_at', { ascending: false });
-
-        if (notesError) {
-          console.error('Error fetching group notes:', notesError);
-          throw notesError;
-        }
-
-        // Get profiles for each note
-        const notesWithProfiles: GroupNote[] = [];
-        if (notesData) {
-          for (const note of notesData) {
-            const { data: profileData } = await supabase
-              .from('profiles')
-              .select('first_name, last_name, email')
-              .eq('id', note.user_id)
-              .maybeSingle();
-
-            notesWithProfiles.push({
-              ...note,
-              first_name: profileData?.first_name || null,
-              last_name: profileData?.last_name || null,
-              email: profileData?.email || null
-            });
-          }
-        }
-
-        console.log('Group notes fetched (fallback):', notesWithProfiles.length);
-        return notesWithProfiles;
+      if (error) {
+        console.error('Error fetching group notes:', error);
+        throw error;
       }
 
-      console.log('Group notes fetched (optimized):', optimizedData?.length || 0);
-      return optimizedData || [];
+      console.log('Group notes fetched:', data?.length || 0);
+      return data || [];
     },
     enabled: !!group && isOpen,
     staleTime: 30000
@@ -196,12 +172,46 @@ const OptimizedGroupDetailsDialog: React.FC<OptimizedGroupDetailsDialogProps> = 
     return member.user_id.charAt(0).toUpperCase();
   };
 
+  const getAuthorName = (note: GroupNote) => {
+    if (note.first_name || note.last_name) {
+      return `${note.first_name || ''} ${note.last_name || ''}`.trim();
+    }
+    if (note.email) {
+      return note.email;
+    }
+    return `User ${note.added_by.slice(0, 8)}...`;
+  };
+
+  const getOwnerName = (note: GroupNote) => {
+    if (note.owner_first_name || note.owner_last_name) {
+      return `${note.owner_first_name || ''} ${note.owner_last_name || ''}`.trim();
+    }
+    if (note.owner_email) {
+      return note.owner_email;
+    }
+    return `User ${note.transcription_owner.slice(0, 8)}...`;
+  };
+
+  const formatDuration = (minutes: number | null) => {
+    if (!minutes) return null;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return hours > 0 ? `${hours}h ${mins}min` : `${mins}min`;
+  };
+
   const handleAddNotes = () => {
     setShowAddNotesDialog(true);
   };
 
   const handleNotesAdded = () => {
     refetchNotes();
+  };
+
+  const handleNoteClick = (transcriptionId: string) => {
+    // Close the dialog first
+    onClose();
+    // Navigate to the transcript editor for the original transcription
+    navigate(`/transcript-editor/${transcriptionId}`);
   };
 
   if (!group) return null;
@@ -306,27 +316,48 @@ const OptimizedGroupDetailsDialog: React.FC<OptimizedGroupDetailsDialogProps> = 
               ) : (
                 <div className="grid gap-3">
                   {notes.map((note) => (
-                    <Card key={note.id}>
+                    <Card 
+                      key={note.id} 
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleNoteClick(note.transcription_id)}
+                    >
                       <CardHeader className="pb-3">
                         <div className="flex justify-between items-start">
-                          <div>
-                            <CardTitle className="text-base">{note.title}</CardTitle>
-                            <p className="text-sm text-muted-foreground">
-                              By {note.first_name || note.last_name
-                                ? `${note.first_name || ''} ${note.last_name || ''}`.trim()
-                                : note.email || 'Unknown User'} • {new Date(note.created_at).toLocaleDateString()}
-                            </p>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <CardTitle className="text-base">{note.title}</CardTitle>
+                              <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                            <div className="space-y-1 text-sm text-muted-foreground">
+                              <p>
+                                Original by {getOwnerName(note)} • {new Date(note.transcription_created_at).toLocaleDateString()}
+                              </p>
+                              <p>
+                                Added by {getAuthorName(note)} • {new Date(note.added_at).toLocaleDateString()}
+                              </p>
+                            </div>
                           </div>
-                          <div className="flex gap-2">
-                            {note.is_private && (
-                              <Badge variant="outline" className="text-xs">
-                                Private
-                              </Badge>
-                            )}
-                            {note.user_id === user?.id && (
+                          <div className="flex flex-col gap-2 ml-4">
+                            <div className="flex gap-2">
                               <Badge variant="secondary" className="text-xs">
-                                Your Note
+                                {note.source_type}
                               </Badge>
+                              {note.added_by === user?.id && (
+                                <Badge variant="outline" className="text-xs">
+                                  Added by you
+                                </Badge>
+                              )}
+                              {note.transcription_owner === user?.id && (
+                                <Badge variant="default" className="text-xs">
+                                  Your Note
+                                </Badge>
+                              )}
+                            </div>
+                            {note.duration && (
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Clock className="h-3 w-3" />
+                                {formatDuration(note.duration)}
+                              </div>
                             )}
                           </div>
                         </div>

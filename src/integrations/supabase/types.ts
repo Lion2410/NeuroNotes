@@ -48,6 +48,59 @@ export type Database = {
           },
         ]
       }
+      group_notes: {
+        Row: {
+          added_at: string
+          added_by: string
+          group_id: number
+          id: number
+          transcription_id: string
+        }
+        Insert: {
+          added_at?: string
+          added_by: string
+          group_id: number
+          id?: never
+          transcription_id: string
+        }
+        Update: {
+          added_at?: string
+          added_by?: string
+          group_id?: number
+          id?: never
+          transcription_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_notes_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_notes_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_notes_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "user_groups_with_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_notes_transcription_id_fkey"
+            columns: ["transcription_id"]
+            isOneToOne: false
+            referencedRelation: "transcriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       groups: {
         Row: {
           created_at: string
@@ -330,6 +383,57 @@ export type Database = {
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "user_groups_with_stats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      group_notes_with_details: {
+        Row: {
+          added_at: string | null
+          added_by: string | null
+          content: string | null
+          duration: number | null
+          email: string | null
+          first_name: string | null
+          group_id: number | null
+          id: number | null
+          last_name: string | null
+          owner_email: string | null
+          owner_first_name: string | null
+          owner_last_name: string | null
+          source_type: string | null
+          title: string | null
+          transcription_created_at: string | null
+          transcription_id: string | null
+          transcription_owner: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_notes_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_notes_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_notes_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "user_groups_with_stats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_notes_transcription_id_fkey"
+            columns: ["transcription_id"]
+            isOneToOne: false
+            referencedRelation: "transcriptions"
             referencedColumns: ["id"]
           },
         ]

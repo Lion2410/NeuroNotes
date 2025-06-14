@@ -52,11 +52,21 @@ const AddNotesToGroupDialog: React.FC<AddNotesToGroupDialogProps> = ({
 
     setLoading(true);
     try {
-      // Get user's transcriptions from the dashboard
+      // Get user's transcriptions that aren't already in this group
+      const { data: existingGroupNotes, error: existingError } = await supabase
+        .from('group_notes')
+        .select('transcription_id')
+        .eq('group_id', groupId);
+
+      if (existingError) throw existingError;
+
+      const existingTranscriptionIds = existingGroupNotes?.map(note => note.transcription_id) || [];
+
       const { data: transcriptions, error } = await supabase
         .from('transcriptions')
         .select('id, title, content, created_at, source_type, duration')
         .eq('user_id', user.id)
+        .not('id', 'in', `(${existingTranscriptionIds.length > 0 ? existingTranscriptionIds.join(',') : 'null'})`)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -96,27 +106,20 @@ const AddNotesToGroupDialog: React.FC<AddNotesToGroupDialogProps> = ({
 
     setAdding(true);
     try {
-      console.log('Adding notes to group:', { groupId, selectedCount: selectedTranscriptions.size });
+      console.log('Adding note references to group:', { groupId, selectedCount: selectedTranscriptions.size });
       
-      // Get selected transcriptions
+      // Create references in the group_notes junction table
       const selectedTranscriptionIds = Array.from(selectedTranscriptions);
-      const selectedItems = userTranscriptions.filter(t => selectedTranscriptionIds.includes(t.id));
-
-      console.log('Selected transcriptions:', selectedItems.map(t => ({ id: t.id, title: t.title })));
-
-      // Create notes in the notes table based on selected transcriptions
-      const notesToInsert = selectedItems.map(transcription => ({
-        user_id: user!.id,
+      const notesToInsert = selectedTranscriptionIds.map(transcriptionId => ({
         group_id: groupId,
-        title: transcription.title,
-        content: transcription.content,
-        is_private: false
+        transcription_id: transcriptionId,
+        added_by: user!.id
       }));
 
-      console.log('Notes to insert:', notesToInsert);
+      console.log('Note references to insert:', notesToInsert);
 
       const { data, error } = await supabase
-        .from('notes')
+        .from('group_notes')
         .insert(notesToInsert)
         .select();
 
@@ -125,7 +128,7 @@ const AddNotesToGroupDialog: React.FC<AddNotesToGroupDialogProps> = ({
         throw error;
       }
 
-      console.log('Successfully inserted notes:', data);
+      console.log('Successfully inserted note references:', data);
 
       toast({
         title: "Notes Added Successfully",
@@ -144,6 +147,8 @@ const AddNotesToGroupDialog: React.FC<AddNotesToGroupDialogProps> = ({
         errorMessage = "Permission denied. You may not be a member of this group.";
       } else if (error.message?.includes('foreign key')) {
         errorMessage = "Invalid group or user reference.";
+      } else if (error.message?.includes('duplicate key')) {
+        errorMessage = "Some of these notes are already in the group.";
       }
       
       toast({
@@ -185,13 +190,13 @@ const AddNotesToGroupDialog: React.FC<AddNotesToGroupDialogProps> = ({
             <div className="text-center py-8 text-muted-foreground">
               <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
               <p>No notes available to add.</p>
-              <p className="text-sm">You haven't created any notes yet. Start by creating a transcription from the dashboard.</p>
+              <p className="text-sm">Either you haven't created any notes yet, or all your notes are already in this group.</p>
             </div>
           ) : (
             <>
               <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
                 <AlertCircle className="h-4 w-4" />
-                <span>Select notes from your dashboard to add to the group.</span>
+                <span>Select notes from your dashboard to add references to the group.</span>
               </div>
               
               <div className="grid gap-3 max-h-96 overflow-y-auto">
@@ -247,7 +252,7 @@ const AddNotesToGroupDialog: React.FC<AddNotesToGroupDialogProps> = ({
                     disabled={selectedTranscriptions.size === 0 || adding}
                   >
                     <Plus className="h-4 w-4 mr-2" />
-                    {adding ? 'Adding...' : `Add ${selectedTranscriptions.size} Note(s)`}
+                    {adding ? 'Adding...' : `Add ${selectedTranscriptions.size} Reference(s)`}
                   </Button>
                 </div>
               </div>
