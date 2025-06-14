@@ -46,36 +46,60 @@ const TranscriptEditor = () => {
       console.log('Fetching transcription with ID:', id);
       console.log('Current user ID:', user?.id);
       
-      // First, let's check if this transcription is shared in any groups the user belongs to
-      const { data: groupNotes, error: groupError } = await supabase
-        .from('group_notes_with_details')
-        .select('*')
-        .eq('transcription_id', id);
-      
-      console.log('Group notes for this transcription:', groupNotes);
-      if (groupError) console.log('Group notes error:', groupError);
-
-      // Try to fetch the transcription directly
-      const { data, error } = await supabase
+      // First, try to fetch the transcription directly
+      const { data: directData, error: directError } = await supabase
         .from('transcriptions')
         .select('*')
         .eq('id', id)
         .maybeSingle();
 
-      console.log('Transcription query result:', data);
-      console.log('Transcription query error:', error);
+      console.log('Direct transcription query result:', directData);
+      console.log('Direct transcription query error:', directError);
 
-      if (error) {
-        console.error('Error fetching transcription:', error);
-        throw error;
+      if (directError) {
+        console.error('Error in direct transcription query:', directError);
+        throw directError;
       }
 
-      if (!data) {
-        throw new Error('Transcription not found or access denied');
-      }
+      if (directData) {
+        // User owns this transcription or has direct access
+        setTranscription(directData);
+        setEditedContent(directData.content || '');
+      } else {
+        // Check if this transcription is shared in any groups the user belongs to
+        console.log('Direct access failed, checking group access...');
+        const { data: groupNotes, error: groupError } = await supabase
+          .from('group_notes_with_details')
+          .select('*')
+          .eq('transcription_id', id);
+        
+        console.log('Group notes for this transcription:', groupNotes);
+        if (groupError) {
+          console.log('Group notes error:', groupError);
+          throw groupError;
+        }
 
-      setTranscription(data);
-      setEditedContent(data.content || '');
+        if (groupNotes && groupNotes.length > 0) {
+          // Use the first group note (they should all have the same transcription data)
+          const groupNote = groupNotes[0];
+          const transcriptionData: Transcription = {
+            id: groupNote.transcription_id,
+            title: groupNote.title,
+            content: groupNote.content,
+            summary: '', // Group notes view doesn't include summary
+            source_type: groupNote.source_type,
+            created_at: groupNote.transcription_created_at,
+            duration: groupNote.duration,
+            user_id: groupNote.transcription_owner
+          };
+          
+          console.log('Using group shared transcription data:', transcriptionData);
+          setTranscription(transcriptionData);
+          setEditedContent(transcriptionData.content || '');
+        } else {
+          throw new Error('Transcription not found or access denied');
+        }
+      }
     } catch (error) {
       console.error('Error fetching transcription:', error);
       toast({

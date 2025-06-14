@@ -46,36 +46,60 @@ const NoteEditor = () => {
       console.log('Fetching note with ID:', id);
       console.log('Current user ID:', user?.id);
       
-      // First, let's check if this note is shared in any groups the user belongs to
-      const { data: groupNotes, error: groupError } = await supabase
-        .from('group_notes_with_details')
-        .select('*')
-        .eq('transcription_id', id);
-      
-      console.log('Group notes for this note:', groupNotes);
-      if (groupError) console.log('Group notes error:', groupError);
-
-      // Try to fetch the note directly
-      const { data, error } = await supabase
+      // First, try to fetch the note directly
+      const { data: directData, error: directError } = await supabase
         .from('transcriptions')
         .select('*')
         .eq('id', id)
         .maybeSingle();
 
-      console.log('Note query result:', data);
-      console.log('Note query error:', error);
+      console.log('Direct note query result:', directData);
+      console.log('Direct note query error:', directError);
 
-      if (error) {
-        console.error('Error fetching note:', error);
-        throw error;
+      if (directError) {
+        console.error('Error in direct note query:', directError);
+        throw directError;
       }
 
-      if (!data) {
-        throw new Error('Note not found or access denied');
-      }
+      if (directData) {
+        // User owns this note or has direct access
+        setNote(directData);
+        setEditedContent(directData.content || '');
+      } else {
+        // Check if this note is shared in any groups the user belongs to
+        console.log('Direct access failed, checking group access...');
+        const { data: groupNotes, error: groupError } = await supabase
+          .from('group_notes_with_details')
+          .select('*')
+          .eq('transcription_id', id);
+        
+        console.log('Group notes for this note:', groupNotes);
+        if (groupError) {
+          console.log('Group notes error:', groupError);
+          throw groupError;
+        }
 
-      setNote(data);
-      setEditedContent(data.content || '');
+        if (groupNotes && groupNotes.length > 0) {
+          // Use the first group note (they should all have the same note data)
+          const groupNote = groupNotes[0];
+          const noteData: Transcription = {
+            id: groupNote.transcription_id,
+            title: groupNote.title,
+            content: groupNote.content,
+            summary: '', // Group notes view doesn't include summary
+            source_type: groupNote.source_type,
+            created_at: groupNote.transcription_created_at,
+            duration: groupNote.duration,
+            user_id: groupNote.transcription_owner
+          };
+          
+          console.log('Using group shared note data:', noteData);
+          setNote(noteData);
+          setEditedContent(noteData.content || '');
+        } else {
+          throw new Error('Note not found or access denied');
+        }
+      }
     } catch (error) {
       console.error('Error fetching note:', error);
       toast({
