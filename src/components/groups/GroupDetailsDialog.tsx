@@ -81,7 +81,7 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
     
     setLoadingMembers(true);
     try {
-      // First get the group members
+      // Get the group members from group_members table
       const { data: memberData, error: memberError } = await supabase
         .from('group_members')
         .select('id, user_id, is_admin, joined_at')
@@ -90,11 +90,30 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
 
       if (memberError) throw memberError;
 
-      // Then get profiles for each member
+      // Get creator's profile for inclusion
+      const { data: creatorProfile } = await supabase
+        .from('profiles')
+        .select('first_name, last_name, email')
+        .eq('id', group.creator_id)
+        .single();
+
       const membersWithProfiles: GroupMember[] = [];
       
+      // Add creator first (they're always a member)
+      membersWithProfiles.push({
+        id: 0, // Use 0 as a special ID for creator
+        user_id: group.creator_id,
+        is_admin: true,
+        joined_at: group.created_at,
+        profile: creatorProfile
+      });
+
+      // Then add other members if they exist
       if (memberData) {
         for (const member of memberData) {
+          // Skip if this is the creator (already added)
+          if (member.user_id === group.creator_id) continue;
+
           const { data: profileData } = await supabase
             .from('profiles')
             .select('first_name, last_name, email')
@@ -108,6 +127,7 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
         }
       }
 
+      console.log('Fetched members with profiles:', membersWithProfiles);
       setMembers(membersWithProfiles);
     } catch (error: any) {
       console.error('Error fetching members:', error);
@@ -293,35 +313,37 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
                 <div className="text-center py-8">Loading members...</div>
               ) : (
                 <div className="grid gap-3">
-                  {members.map((member) => (
-                    <Card key={member.id}>
-                      <CardContent className="p-4">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <p className="font-medium">
-                              {member.profile?.first_name || member.profile?.last_name
-                                ? `${member.profile.first_name || ''} ${member.profile.last_name || ''}`.trim()
-                                : member.profile?.email || 'Unknown User'}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {member.profile?.email}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Joined {new Date(member.joined_at).toLocaleDateString()}
-                            </p>
+                  {members.map((member) => {
+                    const displayName = member.profile?.first_name || member.profile?.last_name
+                      ? `${member.profile.first_name || ''} ${member.profile.last_name || ''}`.trim()
+                      : member.profile?.email || 'Unknown User';
+                    
+                    return (
+                      <Card key={`${member.user_id}-${member.id}`}>
+                        <CardContent className="p-4">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <p className="font-medium">{displayName}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {member.profile?.email}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Joined {new Date(member.joined_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {member.is_admin && (
+                                <Badge variant="outline">Admin</Badge>
+                              )}
+                              {member.user_id === group.creator_id && (
+                                <Badge>Creator</Badge>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            {member.is_admin && (
-                              <Badge variant="outline">Admin</Badge>
-                            )}
-                            {member.user_id === group.creator_id && (
-                              <Badge>Creator</Badge>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               )}
             </TabsContent>
