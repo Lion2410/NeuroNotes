@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LogOut, Plus, Search, Filter, Play, Users, FileText, Download, Share, User } from 'lucide-react';
@@ -25,6 +24,7 @@ const Dashboard = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [notes, setNotes] = useState<Note[]>([]);
   const [totalNotes, setTotalNotes] = useState(0);
+  const [totalGroups, setTotalGroups] = useState(0);
   const [loading, setLoading] = useState(true);
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
@@ -33,6 +33,7 @@ const Dashboard = () => {
   useEffect(() => {
     if (user) {
       fetchNotes();
+      fetchGroupsCount();
     }
   }, [user]);
 
@@ -60,18 +61,28 @@ const Dashboard = () => {
     }
   };
 
+  const fetchGroupsCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('groups')
+        .select('*', { count: 'exact', head: true })
+        .or(`creator_id.eq.${user?.id},group_members.user_id.eq.${user?.id}`)
+        .inner('group_members', 'id', 'group_id');
+
+      if (error) {
+        console.error('Error fetching groups count:', error);
+        return;
+      }
+      setTotalGroups(count || 0);
+    } catch (error: any) {
+      console.error('Error fetching groups count:', error);
+    }
+  };
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
   };
-
-  // Mock data for team members - you'll need to implement team functionality
-  const teamMembers = [
-    { id: 1, name: 'John Smith', email: 'john@company.com', role: 'Project Manager' },
-    { id: 2, name: 'Sarah Johnson', email: 'sarah@company.com', role: 'Developer' },
-    { id: 3, name: 'Mike Chen', email: 'mike@company.com', role: 'Designer' },
-    { id: 4, name: 'Lisa Wong', email: 'lisa@company.com', role: 'QA Engineer' }
-  ];
 
   // Get recent notes (latest 3)
   const recentNotes = notes.slice(0, 3).map(note => ({
@@ -164,16 +175,16 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-300 cursor-pointer sm:col-span-2 lg:col-span-1" onClick={() => navigate('/team')}>
+          <Card className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-300 cursor-pointer sm:col-span-2 lg:col-span-1" onClick={() => navigate('/groups')}>
             <CardHeader className="pb-3 sm:pb-4 p-4 sm:p-6">
               <CardTitle className="text-white flex items-center gap-2 text-sm sm:text-base">
                 <Users className="h-4 w-4 sm:h-5 sm:w-5 text-purple-400" />
-                Team Members
+                Groups
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 sm:p-6 pt-0">
-              <div className="text-2xl sm:text-3xl font-bold text-white mb-2">{teamMembers.length}</div>
-              <p className="text-slate-300 text-xs sm:text-sm">Active collaborators</p>
+              <div className="text-2xl sm:text-3xl font-bold text-white mb-2">{totalGroups}</div>
+              <p className="text-slate-300 text-xs sm:text-sm">Active groups</p>
             </CardContent>
           </Card>
         </div>
