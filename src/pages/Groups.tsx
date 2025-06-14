@@ -39,25 +39,24 @@ const Groups = () => {
     try {
       console.log('Fetching groups for user:', user?.id);
       
-      // With the new simplified policies, we need to fetch groups differently:
-      // 1. First get groups the user created (they can see these directly from groups table)
-      const { data: createdGroups, error: createdError } = await supabase
+      // With the new RLS policies, we can now fetch all groups the user has access to
+      // This includes both groups they created and groups they're members of
+      const { data: allGroups, error: groupsError } = await supabase
         .from('groups')
         .select('id, name, creator_id, created_at')
-        .eq('creator_id', user?.id);
+        .order('created_at', { ascending: false });
 
-      if (createdError) {
-        console.error('Error fetching created groups:', createdError);
-        throw createdError;
+      if (groupsError) {
+        console.error('Error fetching groups:', groupsError);
+        throw groupsError;
       }
 
-      console.log('Created groups:', createdGroups);
+      console.log('Fetched groups:', allGroups);
 
-      // 2. Get groups where user is a member (through group_members)
+      // Get user's memberships to determine admin status and member counts
       const { data: membershipData, error: membershipError } = await supabase
         .from('group_members')
-        .select('group_id, is_admin')
-        .eq('user_id', user?.id);
+        .select('group_id, is_admin');
 
       if (membershipError) {
         console.error('Error fetching memberships:', membershipError);
@@ -66,32 +65,16 @@ const Groups = () => {
 
       console.log('User memberships:', membershipData);
 
-      // 3. For each membership, get the group details
-      const memberGroupIds = membershipData?.map(m => m.group_id) || [];
-      let memberGroups: any[] = [];
-      
-      if (memberGroupIds.length > 0) {
-        // We can't query groups directly for groups we're members of due to RLS
-        // So we need to get group details through a different approach
-        // Since we can only see groups we created, we'll have to work with what we have
-        console.log('Member group IDs:', memberGroupIds);
-        
-        // For now, we'll only show groups the user created
-        // The membership groups would need to be handled differently with current policies
-      }
-
-      // Process the groups we can access (created groups)
-      const allGroups = createdGroups || [];
-      
+      // Process the groups to add member counts and admin status
       const processedGroups = await Promise.all(
-        allGroups.map(async (group: any) => {
+        (allGroups || []).map(async (group: any) => {
           // Get member count for this group
           const { count } = await supabase
             .from('group_members')
             .select('*', { count: 'exact', head: true })
             .eq('group_id', group.id);
 
-          // Check if user is admin (creator is always admin)
+          // Check if user is admin
           const isCreator = group.creator_id === user?.id;
           const membership = membershipData?.find(m => m.group_id === group.id);
           const isAdmin = isCreator || (membership?.is_admin || false);
