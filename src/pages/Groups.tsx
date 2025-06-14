@@ -128,19 +128,19 @@ const Groups: React.FC = () => {
           </div>
 
           <Tabs defaultValue="my-groups" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-8 bg-white/10 border-white/20">
-              <TabsTrigger value="my-groups" className="flex items-center gap-2 text-white data-[state=active]:bg-white/20 data-[state=active]:text-white">
+            <TabsList className="grid w-full grid-cols-2 mb-8 bg-white/5 border-white/10">
+              <TabsTrigger value="my-groups" className="flex items-center gap-2 text-white data-[state=active]:bg-white/15 data-[state=active]:text-white">
                 <Users className="h-4 w-4" />
                 My Groups
               </TabsTrigger>
-              <TabsTrigger value="join-group" className="flex items-center gap-2 text-white data-[state=active]:bg-white/20 data-[state=active]:text-white">
+              <TabsTrigger value="join-group" className="flex items-center gap-2 text-white data-[state=active]:bg-white/15 data-[state=active]:text-white">
                 <UserPlus className="h-4 w-4" />
                 Join Group
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="my-groups">
-              <Card className="bg-white/10 backdrop-blur-md border-white/20">
+              <Card className="bg-white/5 backdrop-blur-md border-white/10">
                 <CardHeader>
                   <div className="flex justify-between items-center">
                     <div>
