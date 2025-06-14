@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Edit2, Trash2, RotateCcw } from 'lucide-react';
@@ -21,6 +22,7 @@ interface Transcription {
   source_type: string;
   created_at: string;
   duration?: number;
+  user_id: string;
 }
 
 const NoteEditor = () => {
@@ -46,7 +48,6 @@ const NoteEditor = () => {
         .from('transcriptions')
         .select('*')
         .eq('id', id)
-        .eq('user_id', user?.id)
         .single();
 
       if (error) throw error;
@@ -226,6 +227,9 @@ const NoteEditor = () => {
     });
   };
 
+  // Check if current user is the owner
+  const isOwner = note?.user_id === user?.id;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black flex items-center justify-center">
@@ -256,45 +260,51 @@ const NoteEditor = () => {
               <span className="text-lg md:text-2xl font-bold text-white">NeuroNotes</span>
             </div>
             <span className="text-slate-400 hidden md:block">/</span>
-            <EditableTitle
-              title={note.title}
-              onUpdate={handleTitleUpdate}
-              className="text-white font-medium text-sm md:text-base"
-            />
+            {isOwner ? (
+              <EditableTitle
+                title={note.title}
+                onUpdate={handleTitleUpdate}
+                className="text-white font-medium text-sm md:text-base"
+              />
+            ) : (
+              <span className="text-white font-medium text-sm md:text-base">{note.title}</span>
+            )}
           </div>
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setEditingContent(true)}
-              className="border-white/30 hover:bg-white/10 text-slate-950"
-            >
-              <Edit2 className="h-4 w-4" />
-            </Button>
-            <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-              <DialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-red-500/30 hover:bg-red-500/10 text-red-400"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-slate-900 border-slate-700">
-                <DialogHeader>
-                  <DialogTitle className="text-white">Delete Note</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <p className="text-slate-300">Are you sure you want to delete this note? This action cannot be undone.</p>
-                  <div className="flex gap-2">
-                    <Button onClick={handleDelete} variant="destructive">Delete</Button>
-                    <Button onClick={() => setShowDeleteDialog(false)} variant="outline">Cancel</Button>
+          {isOwner && (
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditingContent(true)}
+                className="border-white/30 hover:bg-white/10 text-slate-950"
+              >
+                <Edit2 className="h-4 w-4" />
+              </Button>
+              <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-red-500/30 hover:bg-red-500/10 text-red-400"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="bg-slate-900 border-slate-700">
+                  <DialogHeader>
+                    <DialogTitle className="text-white">Delete Note</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <p className="text-slate-300">Are you sure you want to delete this note? This action cannot be undone.</p>
+                    <div className="flex gap-2">
+                      <Button onClick={handleDelete} variant="destructive">Delete</Button>
+                      <Button onClick={() => setShowDeleteDialog(false)} variant="outline">Cancel</Button>
+                    </div>
                   </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
         </div>
       </header>
 
@@ -309,7 +319,7 @@ const NoteEditor = () => {
               </TabsList>
               
               <TabsContent value="content">
-                {editingContent ? (
+                {editingContent && isOwner ? (
                   <div className="space-y-4">
                     <Textarea
                       value={editedContent}
@@ -337,28 +347,30 @@ const NoteEditor = () => {
                 <div className="bg-white/10 backdrop-blur-md border-white/20 rounded-lg p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-white text-lg font-semibold">Note Summary</h3>
-                    <div className="flex gap-2">
-                      {!note.summary && (
-                        <Button
-                          onClick={generateSummary}
-                          disabled={generatingSummary}
-                          className="bg-purple-600 hover:bg-purple-700"
-                        >
-                          {generatingSummary ? 'Generating...' : 'Generate Summary'}
-                        </Button>
-                      )}
-                      {note.summary && (
-                        <Button
-                          onClick={generateSummary}
-                          disabled={generatingSummary}
-                          variant="outline"
-                          className="border-white/30 hover:bg-white/10 text-slate-950"
-                        >
-                          <RotateCcw className="h-4 w-4 mr-2" />
-                          {generatingSummary ? 'Re-generating...' : 'Re-summarize'}
-                        </Button>
-                      )}
-                    </div>
+                    {isOwner && (
+                      <div className="flex gap-2">
+                        {!note.summary && (
+                          <Button
+                            onClick={generateSummary}
+                            disabled={generatingSummary}
+                            className="bg-purple-600 hover:bg-purple-700"
+                          >
+                            {generatingSummary ? 'Generating...' : 'Generate Summary'}
+                          </Button>
+                        )}
+                        {note.summary && (
+                          <Button
+                            onClick={generateSummary}
+                            disabled={generatingSummary}
+                            variant="outline"
+                            className="border-white/30 hover:bg-white/10 text-slate-950"
+                          >
+                            <RotateCcw className="h-4 w-4 mr-2" />
+                            {generatingSummary ? 'Re-generating...' : 'Re-summarize'}
+                          </Button>
+                        )}
+                      </div>
+                    )}
                   </div>
                   
                   {note.summary ? (
@@ -368,7 +380,7 @@ const NoteEditor = () => {
                   ) : (
                     <div className="bg-white/5 rounded-lg p-4 text-center">
                       <p className="text-slate-400">
-                        {generatingSummary ? 'Generating summary...' : 'No summary available. Click "Generate Summary" to create one.'}
+                        {generatingSummary ? 'Generating summary...' : isOwner ? 'No summary available. Click "Generate Summary" to create one.' : 'No summary available.'}
                       </p>
                     </div>
                   )}
