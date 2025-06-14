@@ -262,7 +262,7 @@ const Notes: React.FC = () => {
                     </div>
                   </div>
                 </CardContent>
-              </div>
+              </Card>
             ))}
           </div>
         )}
