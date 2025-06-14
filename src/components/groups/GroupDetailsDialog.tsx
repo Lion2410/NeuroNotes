@@ -6,10 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Users, FileText, UserPlus, Settings, Copy, Check } from 'lucide-react';
+import { Users, FileText, UserPlus, Settings, Copy, Check, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import AddNotesToGroupDialog from './AddNotesToGroupDialog';
 
 interface GroupMember {
   id: number;
@@ -63,6 +64,7 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [showAddNotesDialog, setShowAddNotesDialog] = useState(false);
   const [generatingInvite, setGeneratingInvite] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -228,6 +230,14 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
     }
   };
 
+  const handleAddNotes = () => {
+    setShowAddNotesDialog(true);
+  };
+
+  const handleNotesAdded = () => {
+    fetchNotes(); // Refresh the notes list
+  };
+
   if (!group) return null;
 
   return (
@@ -319,9 +329,9 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
             <TabsContent value="notes" className="space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium">Group Notes</h3>
-                <Button size="sm">
-                  <FileText className="h-4 w-4 mr-2" />
-                  Create Note
+                <Button size="sm" onClick={handleAddNotes}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Notes
                 </Button>
               </div>
 
@@ -329,7 +339,7 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
                 <div className="text-center py-8">Loading notes...</div>
               ) : notes.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No notes yet. Create the first note for this group!
+                  No notes yet. Add notes from your collection to share with the group!
                 </div>
               ) : (
                 <div className="grid gap-3">
@@ -472,6 +482,17 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Add Notes Dialog */}
+      {group && (
+        <AddNotesToGroupDialog
+          isOpen={showAddNotesDialog}
+          onClose={() => setShowAddNotesDialog(false)}
+          groupId={group.id}
+          groupName={group.name}
+          onNotesAdded={handleNotesAdded}
+        />
+      )}
     </>
   );
 };

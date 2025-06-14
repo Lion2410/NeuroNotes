@@ -39,50 +39,57 @@ const Groups = () => {
     try {
       console.log('Fetching groups for user:', user?.id);
       
-      // Get groups where user is creator or member
-      const { data: groupsData, error: groupsError } = await supabase
-        .from('groups')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Get groups where user is a member (including admin/creator)
+      const { data: membershipData, error: membershipError } = await supabase
+        .from('group_members')
+        .select(`
+          group_id,
+          is_admin,
+          groups!inner(
+            id,
+            name,
+            creator_id,
+            created_at
+          )
+        `)
+        .eq('user_id', user?.id);
 
-      if (groupsError) {
-        console.error('Groups data error:', groupsError);
-        throw groupsError;
+      if (membershipError) {
+        console.error('Membership data error:', membershipError);
+        throw membershipError;
       }
 
-      console.log('Fetched groups data:', groupsData);
+      console.log('Fetched membership data:', membershipData);
       
-      if (!groupsData || groupsData.length === 0) {
-        console.log('No groups found for user');
+      if (!membershipData || membershipData.length === 0) {
+        console.log('No group memberships found for user');
         setGroups([]);
         return;
       }
       
       // Process groups to add member count and admin status
       const processedGroups = await Promise.all(
-        groupsData.map(async (group: any) => {
-          // Get member count
+        membershipData.map(async (membership: any) => {
+          const group = membership.groups;
+          
+          // Get member count for this group
           const { count } = await supabase
             .from('group_members')
             .select('*', { count: 'exact', head: true })
             .eq('group_id', group.id);
 
-          // Check if current user is admin
-          const { data: memberData } = await supabase
-            .from('group_members')
-            .select('is_admin')
-            .eq('group_id', group.id)
-            .eq('user_id', user?.id)
-            .maybeSingle();
-
           return {
-            ...group,
+            id: group.id,
+            name: group.name,
+            creator_id: group.creator_id,
+            created_at: group.created_at,
             member_count: count || 0,
-            is_admin: memberData?.is_admin || group.creator_id === user?.id
+            is_admin: membership.is_admin || group.creator_id === user?.id
           };
         })
       );
       
+      console.log('Processed groups:', processedGroups);
       setGroups(processedGroups);
     } catch (error: any) {
       console.error('Error fetching groups:', error);
