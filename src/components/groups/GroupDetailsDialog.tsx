@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Users, FileText, UserPlus, Settings, Copy, Check, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,6 +22,7 @@ interface GroupMember {
     first_name: string | null;
     last_name: string | null;
     email: string | null;
+    avatar_url?: string | null;
   } | null;
 }
 
@@ -76,6 +78,26 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
     }
   }, [group, isOpen]);
 
+  const getDisplayName = (profile: GroupMember['profile'], userId: string) => {
+    if (profile?.first_name || profile?.last_name) {
+      return `${profile.first_name || ''} ${profile.last_name || ''}`.trim();
+    }
+    if (profile?.email) {
+      return profile.email;
+    }
+    // If no profile data, show a more helpful message
+    return `User ${userId.slice(0, 8)}...`;
+  };
+
+  const getAvatarFallback = (profile: GroupMember['profile']) => {
+    if (profile?.first_name || profile?.last_name) {
+      const firstName = profile.first_name || '';
+      const lastName = profile.last_name || '';
+      return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+    }
+    return 'U';
+  };
+
   const fetchMembers = async () => {
     if (!group) return;
     
@@ -90,40 +112,68 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
 
       if (memberError) throw memberError;
 
-      // Get creator's profile for inclusion
-      const { data: creatorProfile } = await supabase
-        .from('profiles')
-        .select('first_name, last_name, email')
-        .eq('id', group.creator_id)
-        .single();
-
       const membersWithProfiles: GroupMember[] = [];
       
-      // Add creator first (they're always a member)
-      membersWithProfiles.push({
-        id: 0, // Use 0 as a special ID for creator
-        user_id: group.creator_id,
-        is_admin: true,
-        joined_at: group.created_at,
-        profile: creatorProfile
-      });
+      // First, add the creator (they're always a member even if not in group_members table)
+      try {
+        const { data: creatorProfile, error: creatorError } = await supabase
+          .from('profiles')
+          .select('first_name, last_name, email, avatar_url')
+          .eq('id', group.creator_id)
+          .single();
+
+        if (creatorError) {
+          console.log('Creator profile not found, using fallback');
+        }
+
+        membersWithProfiles.push({
+          id: 0, // Use 0 as a special ID for creator
+          user_id: group.creator_id,
+          is_admin: true,
+          joined_at: group.created_at,
+          profile: creatorProfile || null
+        });
+      } catch (error) {
+        console.error('Error fetching creator profile:', error);
+        // Still add creator even without profile data
+        membersWithProfiles.push({
+          id: 0,
+          user_id: group.creator_id,
+          is_admin: true,
+          joined_at: group.created_at,
+          profile: null
+        });
+      }
 
       // Then add other members if they exist
-      if (memberData) {
+      if (memberData && memberData.length > 0) {
         for (const member of memberData) {
           // Skip if this is the creator (already added)
           if (member.user_id === group.creator_id) continue;
 
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('first_name, last_name, email')
-            .eq('id', member.user_id)
-            .single();
+          try {
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('first_name, last_name, email, avatar_url')
+              .eq('id', member.user_id)
+              .single();
 
-          membersWithProfiles.push({
-            ...member,
-            profile: profileData
-          });
+            if (profileError) {
+              console.log(`Profile not found for user ${member.user_id}, using fallback`);
+            }
+
+            membersWithProfiles.push({
+              ...member,
+              profile: profileData || null
+            });
+          } catch (error) {
+            console.error(`Error fetching profile for user ${member.user_id}:`, error);
+            // Still add member even without profile data
+            membersWithProfiles.push({
+              ...member,
+              profile: null
+            });
+          }
         }
       }
 
@@ -314,22 +364,30 @@ const GroupDetailsDialog: React.FC<GroupDetailsDialogProps> = ({
               ) : (
                 <div className="grid gap-3">
                   {members.map((member) => {
-                    const displayName = member.profile?.first_name || member.profile?.last_name
-                      ? `${member.profile.first_name || ''} ${member.profile.last_name || ''}`.trim()
-                      : member.profile?.email || 'Unknown User';
+                    const displayName = getDisplayName(member.profile, member.user_id);
                     
                     return (
                       <Card key={`${member.user_id}-${member.id}`}>
                         <CardContent className="p-4">
-                          <div className="flex justify-between items-center">
-                            <div>
-                              <p className="font-medium">{displayName}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {member.profile?.email}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                Joined {new Date(member.joined_at).toLocaleDateString()}
-                              </p>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-10 w-10">
+                                <AvatarImage src={member.profile?.avatar_url || undefined} />
+                                <AvatarFallback>
+                                  {getAvatarFallback(member.profile)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="font-medium">{displayName}</p>
+                                {member.profile?.email && (
+                                  <p className="text-sm text-muted-foreground">
+                                    {member.profile.email}
+                                  </p>
+                                )}
+                                <p className="text-xs text-muted-foreground">
+                                  Joined {new Date(member.joined_at).toLocaleDateString()}
+                                </p>
+                              </div>
                             </div>
                             <div className="flex items-center gap-2">
                               {member.is_admin && (
