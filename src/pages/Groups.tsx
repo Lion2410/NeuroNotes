@@ -39,8 +39,7 @@ const Groups = () => {
     try {
       console.log('Fetching groups for user:', user?.id);
       
-      // With the new RLS policies, we can now fetch all groups the user has access to
-      // This includes both groups they created and groups they're members of
+      // With RLS disabled, we can fetch all groups and filter appropriately
       const { data: allGroups, error: groupsError } = await supabase
         .from('groups')
         .select('id, name, creator_id, created_at')
@@ -56,7 +55,8 @@ const Groups = () => {
       // Get user's memberships to determine admin status and member counts
       const { data: membershipData, error: membershipError } = await supabase
         .from('group_members')
-        .select('group_id, is_admin');
+        .select('group_id, is_admin, user_id')
+        .eq('user_id', user?.id);
 
       if (membershipError) {
         console.error('Error fetching memberships:', membershipError);
@@ -65,9 +65,16 @@ const Groups = () => {
 
       console.log('User memberships:', membershipData);
 
+      // Filter groups to only show ones where user is creator or member
+      const userGroupIds = membershipData?.map(m => m.group_id) || [];
+      const createdGroupIds = allGroups?.filter(g => g.creator_id === user?.id).map(g => g.id) || [];
+      const accessibleGroupIds = [...new Set([...userGroupIds, ...createdGroupIds])];
+      
+      const accessibleGroups = allGroups?.filter(g => accessibleGroupIds.includes(g.id)) || [];
+
       // Process the groups to add member counts and admin status
       const processedGroups = await Promise.all(
-        (allGroups || []).map(async (group: any) => {
+        accessibleGroups.map(async (group: any) => {
           // Get member count for this group
           const { count } = await supabase
             .from('group_members')
@@ -117,7 +124,7 @@ const Groups = () => {
     try {
       console.log('Creating group:', groupName, 'for user:', user.id);
       
-      // Start a transaction-like approach
+      // Create the group first
       const { data: newGroup, error: groupError } = await supabase
         .from('groups')
         .insert({
@@ -145,18 +152,21 @@ const Groups = () => {
 
       if (memberError) {
         console.error('Member creation error:', memberError);
-        toast({
-          title: "Warning",
-          description: `Group "${groupName}" was created but there was an issue adding you as a member. Please try refreshing the page.`,
-          variant: "destructive"
-        });
-      } else {
-        console.log('Creator successfully added as admin member');
-        toast({
-          title: "Group Created",
-          description: `"${groupName}" has been created successfully.`
-        });
+        // If adding member fails, clean up by deleting the group
+        await supabase
+          .from('groups')
+          .delete()
+          .eq('id', newGroup.id);
+        
+        throw new Error('Failed to add creator as group member');
       }
+
+      console.log('Creator successfully added as admin member');
+      
+      toast({
+        title: "Group Created",
+        description: `"${groupName}" has been created successfully and you've been added as an admin.`
+      });
 
       // Refresh the list
       await fetchGroups();
