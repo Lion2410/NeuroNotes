@@ -83,7 +83,7 @@ const MassDeleteDialog: React.FC<MassDeleteDialogProps> = ({ notes, onNotesDelet
       <DialogTrigger asChild>
         <Button 
           variant="outline" 
-          className="border-gray-600/50 hover:bg-gray-800/50 text-gray-300 hover:text-white"
+          className="border-red-500/50 hover:bg-red-500/20 text-red-400 hover:text-red-300"
         >
           <Trash2 className="h-4 w-4 mr-2" />
           Mass Delete
@@ -133,7 +133,7 @@ const MassDeleteDialog: React.FC<MassDeleteDialogProps> = ({ notes, onNotesDelet
               onClick={handleMassDelete}
               disabled={selectedNotes.size === 0 || isDeleting}
               variant="destructive"
-              className="flex-1"
+              className="flex-1 bg-red-600 hover:bg-red-700"
             >
               {isDeleting ? (
                 <>

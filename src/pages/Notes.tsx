@@ -100,7 +100,7 @@ const Notes: React.FC = () => {
       <div 
         className="min-h-screen"
         style={{
-          background: 'linear-gradient(to bottom, #e570e7 0%, #c85ec7 47%, #a849a3 100%)'
+          background: 'linear-gradient(to bottom, #201840 0%, #551B83 47%, #1E092F 100%)'
         }}
       >
         <NotesHeader onBack={handleBack} onCreateNote={handleCreateNote} />
@@ -126,7 +126,7 @@ const Notes: React.FC = () => {
     <div 
       className="min-h-screen"
       style={{
-        background: 'linear-gradient(to bottom, #e570e7 0%, #c85ec7 47%, #a849a3 100%)'
+        background: 'linear-gradient(to bottom, #201840 0%, #551B83 47%, #1E092F 100%)'
       }}
     >
       <NotesHeader 
