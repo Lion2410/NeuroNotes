@@ -10,14 +10,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface TeamMember {
-  id: number;
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  created_at: string;
   user_id: string;
-  group_id: number;
-  is_admin: boolean;
-  joined_at: string;
-  first_name?: string;
-  last_name?: string;
-  email?: string;
+  team_id: string;
   avatar_url?: string;
 }
 
@@ -39,20 +39,16 @@ const TeamMembersList: React.FC<TeamMembersListProps> = ({ teamId, onAddMember }
 
   const fetchMembers = async () => {
     try {
-      console.log('Fetching group members for group:', teamId);
+      console.log('Fetching team members for team:', teamId);
       
-      // Use the group_members_with_profiles view to get member data with profile info
       let query = supabase
-        .from('group_members_with_profiles')
+        .from('team_members')
         .select('*')
-        .order('joined_at', { ascending: false });
+        .order('created_at', { ascending: false });
 
-      // If we have a specific group ID, filter by it
+      // If we have a specific team ID, filter by it
       if (teamId && teamId !== '') {
-        const groupId = parseInt(teamId);
-        if (!isNaN(groupId)) {
-          query = query.eq('group_id', groupId);
-        }
+        query = query.eq('team_id', teamId);
       }
 
       const { data, error } = await query;
@@ -65,7 +61,7 @@ const TeamMembersList: React.FC<TeamMembersListProps> = ({ teamId, onAddMember }
       console.log('Fetched members:', data);
       setMembers(data || []);
     } catch (error: any) {
-      console.error('Error fetching group members:', error);
+      console.error('Error fetching team members:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to fetch team members.",
@@ -84,9 +80,12 @@ const TeamMembersList: React.FC<TeamMembersListProps> = ({ teamId, onAddMember }
   const handleSaveMember = async (updatedMember: TeamMember) => {
     try {
       const { error } = await supabase
-        .from('group_members')
+        .from('team_members')
         .update({
-          is_admin: updatedMember.is_admin
+          name: updatedMember.name,
+          email: updatedMember.email,
+          role: updatedMember.role,
+          updated_at: new Date().toISOString()
         })
         .eq('id', updatedMember.id);
 
@@ -94,7 +93,7 @@ const TeamMembersList: React.FC<TeamMembersListProps> = ({ teamId, onAddMember }
 
       setMembers(prev => 
         prev.map(member => 
-          member.id === updatedMember.id ? { ...member, is_admin: updatedMember.is_admin } : member
+          member.id === updatedMember.id ? updatedMember : member
         )
       );
 
@@ -114,10 +113,10 @@ const TeamMembersList: React.FC<TeamMembersListProps> = ({ teamId, onAddMember }
     }
   };
 
-  const handleDeleteMember = async (memberId: number) => {
+  const handleDeleteMember = async (memberId: string) => {
     try {
       const { error } = await supabase
-        .from('group_members')
+        .from('team_members')
         .delete()
         .eq('id', memberId);
 
@@ -142,19 +141,19 @@ const TeamMembersList: React.FC<TeamMembersListProps> = ({ teamId, onAddMember }
     return new Date(dateString).toLocaleDateString();
   };
 
-  const getRoleColor = (isAdmin: boolean) => {
-    return isAdmin ? 'bg-purple-600' : 'bg-green-600';
-  };
-
-  const getRoleText = (isAdmin: boolean) => {
-    return isAdmin ? 'Admin' : 'Member';
-  };
-
-  const getMemberName = (member: TeamMember) => {
-    if (member.first_name || member.last_name) {
-      return `${member.first_name || ''} ${member.last_name || ''}`.trim();
+  const getRoleColor = (role: string) => {
+    switch (role.toLowerCase()) {
+      case 'owner':
+        return 'bg-purple-600';
+      case 'admin':
+        return 'bg-red-600';
+      case 'moderator':
+        return 'bg-yellow-600';
+      case 'member':
+        return 'bg-green-600';
+      default:
+        return 'bg-gray-600';
     }
-    return member.email || 'Unknown User';
   };
 
   if (loading) {
@@ -195,21 +194,21 @@ const TeamMembersList: React.FC<TeamMembersListProps> = ({ teamId, onAddMember }
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center">
                       <span className="text-white font-semibold">
-                        {getMemberName(member).charAt(0).toUpperCase()}
+                        {member.name.charAt(0).toUpperCase()}
                       </span>
                     </div>
                     <div>
-                      <h4 className="text-white font-medium">{getMemberName(member)}</h4>
-                      <p className="text-slate-400 text-sm">{member.email || 'No email'}</p>
-                      <p className="text-slate-500 text-xs">Joined {formatJoinDate(member.joined_at)}</p>
+                      <h4 className="text-white font-medium">{member.name}</h4>
+                      <p className="text-slate-400 text-sm">{member.email}</p>
+                      <p className="text-slate-500 text-xs">Joined {formatJoinDate(member.created_at)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Badge className={`${getRoleColor(member.is_admin)} text-white`}>
-                      {getRoleText(member.is_admin)}
+                    <Badge className={`${getRoleColor(member.role)} text-white`}>
+                      {member.role}
                     </Badge>
-                    <Badge variant="default">
-                      Active
+                    <Badge variant={member.status === 'active' ? 'default' : 'secondary'}>
+                      {member.status}
                     </Badge>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
