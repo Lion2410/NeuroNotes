@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -211,7 +210,7 @@ const OptimizedGroupDetailsDialog: React.FC<OptimizedGroupDetailsDialogProps> = 
     // Close the dialog first
     onClose();
     // Navigate to the transcript editor for the original transcription
-    navigate(`/transcript-editor/${transcriptionId}`);
+    navigate(`/transcript/${transcriptionId}`);
   };
 
   if (!group) return null;
