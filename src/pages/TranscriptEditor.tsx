@@ -299,25 +299,33 @@ const TranscriptEditor = () => {
       {/* Header */}
       <header className="px-3 md:px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <div className="flex items-center space-x-2 md:space-x-4">
-            <Link to="/notes" className="text-white hover:text-purple-400 transition-colors">
-              <ArrowLeft className="h-5 w-5 md:h-6 md:w-6" />
-            </Link>
-            <div className="flex items-center space-x-2">
+          {/* Left section: logo & titles */}
+          <div className="flex flex-col md:flex-row md:items-center md:space-x-4 w-full">
+            {/* Branding (Logo + App Title) */}
+            <div className="flex items-center gap-2 md:gap-3">
+              <Link to="/notes" className="text-white hover:text-purple-400 transition-colors">
+                <ArrowLeft className="h-5 w-5 md:h-6 md:w-6" />
+              </Link>
               <img src="/lovable-uploads/82423172-8fa2-4a61-9691-e45ac0c5f57c.png" alt="NeuroNotes" className="h-8 md:h-12 w-auto" />
               <span className="text-lg md:text-2xl font-bold text-white">NeuroNotes</span>
             </div>
-            <span className="text-slate-400 hidden md:block">/</span>
-            {isOwner ? (
-              <EditableTitle
-                title={transcription.title}
-                onUpdate={handleTitleUpdate}
-                className="text-white font-medium text-xs md:text-base"
-              />
-            ) : (
-              <span className="text-white font-medium text-xs md:text-base">{transcription.title}</span>
-            )}
+            {/* Title & divider, responsive */}
+            <div className="flex flex-col md:flex-row md:items-center md:space-x-3 mt-2 md:mt-0 w-full">
+              <span className="text-slate-400 mx-0 my-1 md:mx-2 md:my-0 hidden md:block">/</span>
+              <div className="flex-1 max-w-full overflow-hidden">
+                {isOwner ? (
+                  <EditableTitle
+                    title={transcription.title}
+                    onUpdate={handleTitleUpdate}
+                    className="text-white font-medium text-xs md:text-base truncate"
+                  />
+                ) : (
+                  <span className="text-white font-medium text-xs md:text-base truncate">{transcription.title}</span>
+                )}
+              </div>
+            </div>
           </div>
+          {/* Right section: Actions (edit/delete) */}
           {isOwner && (
             <div className="flex items-center space-x-2 mt-2 sm:mt-0">
               <Button
