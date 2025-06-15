@@ -14,6 +14,7 @@ import VirtualAudioSetup from '@/components/VirtualAudioSetup';
 import RealTimeTranscription from '@/components/RealTimeTranscription';
 import { VirtualAudioDevice } from '@/utils/VirtualAudioDriver';
 import AudioRecorder from '@/components/AudioRecorder';
+import { useChunkedTranscription, ChunkTranscript } from "@/hooks/useChunkedTranscription";
 
 interface TranscriptSegment {
   id: string;
@@ -58,6 +59,27 @@ const JoinMeeting = () => {
   // New state for full speaker-labeled transcript segments via AudioRecorder
   const [speakerSegments, setSpeakerSegments] = useState<any[]>([]);
 
+  // Add state for the new chunked transcription
+  const [virtualAudioTranscripts, setVirtualAudioTranscripts] = useState<ChunkTranscript[]>([]);
+  const [isVirtualRecording, setIsVirtualRecording] = useState(false);
+
+  const authToken = window.sessionStorage.getItem('supabase.auth.token') || "";
+
+  // Use new hook for virtual audio, only when Virtual tab & active
+  const {
+    isRecording: isVirtRecActive,
+    isProcessing: isVirtRecProcessing,
+    error: virtRecError,
+    chunks: virtTranscripts,
+    stop: stopVirtRecording,
+    reset: resetVirtRecording,
+  } = useChunkedTranscription({
+    stream: virtualAudioStream,
+    isActive: isVirtualRecording,
+    authToken,
+    onTranscriptsUpdate: setVirtualAudioTranscripts,
+  });
+
   useEffect(() => {
     return () => {
       // Cleanup on unmount
@@ -100,7 +122,13 @@ const JoinMeeting = () => {
   };
 
   const toggleVirtualAudioTranscription = () => {
-    setIsVirtualAudioActive(!isVirtualAudioActive);
+    if (isVirtualRecording) {
+      stopVirtRecording();
+    } else {
+      setVirtualAudioTranscripts([]);
+      resetVirtRecording();
+    }
+    setIsVirtualRecording((prev) => !prev);
   };
 
   // Replace this line:
@@ -622,12 +650,90 @@ const JoinMeeting = () => {
                 onSetupComplete={handleVirtualAudioSetupComplete}
               />
               {virtualAudioStream && (
-                <RealTimeTranscription
-                  audioStream={virtualAudioStream}
-                  onTranscriptUpdate={handleTranscriptUpdate}
-                  isActive={isVirtualAudioActive}
-                  onToggle={toggleVirtualAudioTranscription}
-                />
+                <Card className="bg-white/10 backdrop-blur-md border-white/20 p-0">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-white flex items-center gap-2">
+                        <Mic className="h-5 w-5 text-purple-400" />
+                        System Audio Transcription <span className="ml-2 text-xs text-purple-200">(10s chunks)</span>
+                      </CardTitle>
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={toggleVirtualAudioTranscription}
+                          variant={isVirtualRecording ? "destructive" : "default"}
+                          size="sm"
+                          className={isVirtualRecording ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}
+                          disabled={isVirtRecProcessing}
+                        >
+                          {isVirtualRecording ? (
+                            <>
+                              <Square className="h-4 w-4 mr-2" />
+                              Stop
+                            </>
+                          ) : (
+                            <>
+                              <Mic className="h-4 w-4 mr-2" />
+                              Start
+                            </>
+                          )}
+                        </Button>
+                        {isVirtRecProcessing && (
+                          <Badge className="bg-purple-800 text-white">Processing…</Badge>
+                        )}
+                      </div>
+                    </div>
+                    {virtRecError && (
+                      <Alert className="mt-3" variant="destructive">
+                        <AlertCircle className="h-4 w-4 mr-1" />
+                        <AlertDescription>{virtRecError}</AlertDescription>
+                      </Alert>
+                    )}
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="h-72 overflow-y-auto scrollbar-thin">
+                      {virtualAudioTranscripts.length === 0 ? (
+                        <div className="text-center text-slate-300 pt-14">No transcript yet. Start to capture system audio.</div>
+                      ) : (
+                        virtualAudioTranscripts.map((chunk, i) => (
+                          <div key={chunk.id} className="mb-3 p-3 rounded bg-white/10 border border-white/10">
+                            <span className="text-xs text-purple-300">Chunk #{i + 1}</span>
+                            {chunk.error ? (
+                              <p className="text-red-400">{chunk.error}</p>
+                            ) : (
+                              <p className="text-slate-200 whitespace-pre-line">{chunk.transcript}</p>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    {virtualAudioTranscripts.length > 0 && (
+                      <div className="flex gap-2 mt-3">
+                        <Button
+                          onClick={() => {
+                            setVirtualAudioTranscripts([]);
+                            resetVirtRecording();
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="border-white/30 text-white"
+                        >
+                          Clear
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            const allChunks = virtualAudioTranscripts.map(t => t.transcript).join("\n");
+                            navigator.clipboard.writeText(allChunks);
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="border-white/30 text-white"
+                        >
+                          Copy All
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               )}
             </TabsContent>
 
