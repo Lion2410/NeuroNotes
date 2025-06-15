@@ -1,11 +1,10 @@
-
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, FileText, Clock, Download, Share, Delete } from 'lucide-react';
+import { Recycle, Delete, Clock, Download, Share, FileText, Plus, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -161,13 +160,10 @@ const Notes: React.FC = () => {
         <NotesHeader 
           onBack={handleBack} 
           onCreateNote={handleCreateNote}
-          // Hide mass delete button from header on small screens
           showMassDelete={notes.length > 0}
           massDeleteComponent={
-            // Only show in header for md+ (hidden on mobile)
             notes.length > 0 ? (
               <div className="hidden md:block">
-                {/* open dialog with setMassDeleteOpen to true */}
                 <Button 
                   variant="outline" 
                   className="border-red-500/50 hover:bg-red-500/20 text-red-400 hover:text-red-300"
@@ -323,32 +319,15 @@ const Notes: React.FC = () => {
         {/* Mobile Mass Delete Floating Button */}
         {notes.length > 0 && (
           <>
-            {/* Render MassDeleteDialog as controlled dialog, opened by FAB on mobile and by header button on md+ */}
-            <div style={{ display: 'none' }}>
-              {/* Render once to not break dialog opening state */}
-              <MassDeleteDialog
-                notes={notes.map(note => ({
-                  id: note.id,
-                  title: note.title,
-                  content: note.content || '',
-                  created_at: note.created_at,
-                  updated_at: note.updated_at,
-                  source_type: note.source_type,
-                  duration: note.duration
-                }))}
-                onNotesDeleted={handleNotesDeleted}
-              />
-            </div>
             {/* FAB for mobile screens only */}
             <div className="fixed bottom-6 right-6 z-40 md:hidden">
               <Button
                 size="lg"
-                className="rounded-full bg-red-600 hover:bg-red-700 shadow-lg text-white px-5 py-3"
+                className="rounded-full bg-red-600 hover:bg-red-700 shadow-lg text-white px-0 py-0 h-14 w-14 flex items-center justify-center"
                 onClick={() => setMassDeleteOpen(true)}
-                aria-label="Mass Delete"
+                aria-label="Recycle bin"
               >
-                <Delete className="h-5 w-5 mr-2" />
-                Mass Delete
+                <Recycle className="h-7 w-7" />
               </Button>
             </div>
             {/* Dialog rendered, controlled by massDeleteOpen */}
@@ -363,8 +342,8 @@ const Notes: React.FC = () => {
                 duration: note.duration
               }))}
               onNotesDeleted={handleNotesDeleted}
-              // Override open/close controlled from here for mobile FAB use
-              {...{ isOpen: massDeleteOpen, setIsOpen: setMassDeleteOpen }}
+              isOpen={massDeleteOpen}
+              setIsOpen={setMassDeleteOpen}
             />
           </>
         )}
@@ -374,4 +353,3 @@ const Notes: React.FC = () => {
 };
 
 export default Notes;
-

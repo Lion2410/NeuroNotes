@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -5,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+
 interface Note {
   id: string;
   title: string;
@@ -14,20 +16,31 @@ interface Note {
   source_type: string;
   duration: number | null;
 }
+
 interface MassDeleteDialogProps {
   notes: Note[];
   onNotesDeleted: () => void;
+  isOpen?: boolean;
+  setIsOpen?: (open: boolean) => void;
 }
+
 const MassDeleteDialog: React.FC<MassDeleteDialogProps> = ({
   notes,
-  onNotesDeleted
+  onNotesDeleted,
+  isOpen: controlledOpen,
+  setIsOpen: setControlledOpen
 }) => {
   const [selectedNotes, setSelectedNotes] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
+  // when controlledOpen/setControlledOpen are provided, use them, otherwise fallback to internal state
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isOpen = controlledOpen !== undefined ? controlledOpen : uncontrolledOpen;
+  const setIsOpen = setControlledOpen !== undefined ? setControlledOpen : setUncontrolledOpen;
+
   const {
     toast
   } = useToast();
+
   const handleSelectAll = () => {
     if (selectedNotes.size === notes.length) {
       setSelectedNotes(new Set());
@@ -48,9 +61,7 @@ const MassDeleteDialog: React.FC<MassDeleteDialogProps> = ({
     if (selectedNotes.size === 0) return;
     setIsDeleting(true);
     try {
-      const {
-        error
-      } = await supabase.from('transcriptions').delete().in('id', Array.from(selectedNotes));
+      const { error } = await supabase.from('transcriptions').delete().in('id', Array.from(selectedNotes));
       if (error) throw error;
       toast({
         title: "Notes Deleted",
@@ -70,17 +81,26 @@ const MassDeleteDialog: React.FC<MassDeleteDialogProps> = ({
       setIsDeleting(false);
     }
   };
-  return <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className="border-red-500/50 hover:bg-red-500/20 text-red-400 hover:text-red-300">
-          <Trash2 className="h-4 w-4 mr-2" />
-          Mass Delete
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="bg-gray-900 border-gray-700 max-w-2xl max-h-[80vh] overflow-y-auto">
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      {/* Only render the DialogTrigger if running in uncontrolled mode */}
+      {setControlledOpen === undefined && (
+        <DialogTrigger asChild>
+          <Button variant="outline" className="border-red-500/50 hover:bg-red-500/20 text-red-400 hover:text-red-300">
+            <Trash2 className="h-4 w-4 mr-2" />
+            Mass Delete
+          </Button>
+        </DialogTrigger>
+      )}
+      <DialogContent className="bg-gray-900 border-gray-700 max-w-2xl max-h-[80vh] overflow-y-auto" aria-describedby="mass-delete-description">
         <DialogHeader>
           <DialogTitle className="text-white">Delete Multiple Notes</DialogTitle>
         </DialogHeader>
+        {/* Description for accessibility */}
+        <div id="mass-delete-description" className="sr-only">
+          Select notes to delete. Deleted notes cannot be recovered.
+        </div>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <Button onClick={handleSelectAll} variant="outline" size="sm" className="border-gray-600/50 hover:bg-gray-800/50 text-slate-950">
@@ -92,7 +112,8 @@ const MassDeleteDialog: React.FC<MassDeleteDialogProps> = ({
           </div>
 
           <div className="space-y-2 max-h-96 overflow-y-auto">
-            {notes.map(note => <div key={note.id} className="flex items-center space-x-3 p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800/70 transition-colors">
+            {notes.map(note => (
+              <div key={note.id} className="flex items-center space-x-3 p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800/70 transition-colors">
                 <Checkbox checked={selectedNotes.has(note.id)} onCheckedChange={() => handleSelectNote(note.id)} />
                 <div className="flex-1 min-w-0">
                   <h4 className="text-white font-medium truncate">{note.title}</h4>
@@ -100,18 +121,23 @@ const MassDeleteDialog: React.FC<MassDeleteDialogProps> = ({
                     {new Date(note.created_at).toLocaleDateString()} • {note.source_type}
                   </p>
                 </div>
-              </div>)}
+              </div>
+            ))}
           </div>
 
           <div className="flex gap-3 pt-4 border-t border-gray-700">
             <Button onClick={handleMassDelete} disabled={selectedNotes.size === 0 || isDeleting} variant="destructive" className="flex-1 bg-red-600 hover:bg-red-700">
-              {isDeleting ? <>
+              {isDeleting ? (
+                <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Deleting...
-                </> : <>
+                </>
+              ) : (
+                <>
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete {selectedNotes.size} Note(s)
-                </>}
+                </>
+              )}
             </Button>
             <Button onClick={() => setIsOpen(false)} variant="outline" className="border-gray-600/50 hover:bg-gray-800/50 text-gray-300 hover:text-white">
               Cancel
@@ -119,6 +145,8 @@ const MassDeleteDialog: React.FC<MassDeleteDialogProps> = ({
           </div>
         </div>
       </DialogContent>
-    </Dialog>;
+    </Dialog>
+  );
 };
+
 export default MassDeleteDialog;
