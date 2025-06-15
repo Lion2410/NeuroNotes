@@ -52,30 +52,6 @@ const JoinMeeting = () => {
   // Add new state for audio capture note title
   const [audioCaptureTitle, setAudioCaptureTitle] = useState('');
 
-  // ADD MISSING CONFIG STATE
-  const [checkingConfig, setCheckingConfig] = useState(false);
-  const [deepgramConfigured, setDeepgramConfigured] = useState(false);
-
-  // ADD: Deepgram API healthcheck utility
-  const checkDeepgramKey = async (): Promise<boolean> => {
-    // Call the edge function via HTTP and expect 401/500 if not configured
-    try {
-      const res = await fetch('https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio-realtime', {
-        method: 'POST',
-        body: JSON.stringify({ type: "test" }),
-        headers: { "Content-Type": "application/json" }
-      });
-      if (res.status === 403 || res.status === 401 || res.status === 500) {
-        return false;
-      }
-      // Consider OK if status 200/400, etc (function exists, key set)
-      return true;
-    } catch (err) {
-      // Network/cors error
-      return false;
-    }
-  };
-
   const [microphonePermError, setMicrophonePermError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -489,17 +465,6 @@ const JoinMeeting = () => {
     }
   };
 
-  // Check Deepgram on mount
-  useEffect(() => {
-    let ignore = false;
-    setCheckingConfig(true);
-    checkDeepgramKey().then(isOK => {
-      if (!ignore) setDeepgramConfigured(isOK);
-      setCheckingConfig(false);
-    });
-    return () => { ignore = true; };
-  }, []);
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       {/* Header */}
@@ -525,21 +490,6 @@ const JoinMeeting = () => {
           <h1 className="text-4xl font-bold text-white mb-4">Start Transcription</h1>
           <p className="text-xl text-slate-300">Capture audio live (microphone or virtual) or upload audio for transcription</p>
         </div>
-
-        {/* Add configuration warning above tabs */}
-        {!deepgramConfigured && (
-          <div className="mb-6">
-            <div className="bg-red-900/40 border border-red-400 text-white p-3 rounded flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-red-400" />
-              <div>
-                <b>Missing Deepgram API Key:</b>
-                <span className="ml-2">
-                  Real-time transcription is not available until your backend is configured with a Deepgram API Key in <b>Supabase secrets</b>.
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
 
         <Tabs
           value={meetingMode}
