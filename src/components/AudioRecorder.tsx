@@ -98,7 +98,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       visualize();
 
       console.log("Initializing MediaRecorder...");
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus' : '') });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/wav') ? 'audio/wav' : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '') });
       mediaRecorderRef.current = mediaRecorder;
       console.log("MediaRecorder initialized.");
 
@@ -137,7 +137,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     setProcessing(true);
 
     const formData = new FormData();
-    formData.append('audio', chunk, 'audio.webm');
+    formData.append('audio', chunk, 'audio.wav'); // Updated to match WAV
 
     let accessToken = '';
     if (session && session.access_token) accessToken = session.access_token;
