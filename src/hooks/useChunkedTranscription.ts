@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect, useCallback } from "react";
 
 export interface ChunkTranscript {
@@ -123,7 +122,13 @@ export function useChunkedTranscription({
     };
 
     recorder.onerror = (event) => {
-      setError("Recording error: " + event.error.name);
+      // Fix: Use proper type assertion for MediaRecorderErrorEvent
+      const errorMessage =
+        // Try extract .error.message; fallback if undefined
+        (event as any)?.error?.name ||
+        (event as any)?.error?.message ||
+        "Unknown recording error";
+      setError("Recording error: " + errorMessage);
       setIsRecording(false);
     };
 
