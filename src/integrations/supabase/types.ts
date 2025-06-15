@@ -242,6 +242,67 @@ export type Database = {
         }
         Relationships: []
       }
+      transcription_sessions: {
+        Row: {
+          created_at: string
+          device_label: string | null
+          ended_at: string | null
+          id: string
+          mode: string
+          note_id: number | null
+          started_at: string
+          transcript_content: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_label?: string | null
+          ended_at?: string | null
+          id?: string
+          mode: string
+          note_id?: number | null
+          started_at?: string
+          transcript_content?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_label?: string | null
+          ended_at?: string | null
+          id?: string
+          mode?: string
+          note_id?: number | null
+          started_at?: string
+          transcript_content?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transcription_sessions_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transcription_sessions_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "notes_with_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transcription_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       transcriptions: {
         Row: {
           audio_url: string | null
