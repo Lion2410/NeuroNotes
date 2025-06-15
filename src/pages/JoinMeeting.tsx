@@ -97,6 +97,11 @@ const JoinMeeting = () => {
     setIsVirtualAudioActive(!isVirtualAudioActive);
   };
 
+  // Replace this line:
+  // const supabaseWSURL = 'wss://qlfqnclqowlljjcbeunz.functions.supabase.co/transcribe-audio-realtime';
+  // with the proper websocket function endpoint below!
+  const supabaseWSURL = 'wss://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio-realtime';
+
   const startRealTimeTranscription = async () => {
     try {
       setConnectionStatus('connecting');
@@ -109,9 +114,8 @@ const JoinMeeting = () => {
         mimeType: 'audio/webm;codecs=opus'
       });
 
-      // Setup WebSocket connection for real-time transcription
-      const wsUrl = `wss://qlfqnclqowlljjcbeunz.functions.supabase.co/transcribe-audio-realtime`;
-      wsRef.current = new WebSocket(wsUrl);
+      // Setup WebSocket connection with correct URL
+      wsRef.current = new WebSocket(supabaseWSURL);
       
       wsRef.current.onopen = () => {
         setIsConnected(true);
@@ -150,19 +154,27 @@ const JoinMeeting = () => {
         setIsConnected(false);
         toast({
           title: "Connection Error",
-          description: "Failed to connect to transcription service. Please try again.",
+          description: "Failed to connect to transcription service. Retrying in 3s...",
           variant: "destructive"
         });
+        // Retry logic
+        if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = setTimeout(() => {
+          startRealTimeTranscription();
+        }, 3000);
       };
 
       wsRef.current.onclose = (event) => {
         console.log('WebSocket closed:', event.code, event.reason);
         setIsConnected(false);
         setConnectionStatus('idle');
-        
-        // Auto-reconnect if it wasn't a manual close
+        // Retry only if error code and still recording
         if (event.code !== 1000 && isRecording) {
-          console.log('Attempting to reconnect...');
+          toast({
+            title: "Lost Connection",
+            description: "Reconnecting in 3s...",
+            variant: "destructive"
+          });
           reconnectTimeoutRef.current = setTimeout(() => {
             startRealTimeTranscription();
           }, 3000);
@@ -173,7 +185,6 @@ const JoinMeeting = () => {
       mediaRecorderRef.current.ondataavailable = async (event) => {
         if (event.data.size > 0 && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
           try {
-            // Convert audio blob to base64 and send via WebSocket
             const reader = new FileReader();
             reader.onloadend = () => {
               const base64 = (reader.result as string).split(',')[1];

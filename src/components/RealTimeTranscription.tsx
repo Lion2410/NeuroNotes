@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,6 +37,9 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
   const sessionStartRef = useRef<Date | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
+
+  // Always use the correct URL for websocket
+  const supabaseWSURL = 'wss://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio-realtime';
 
   useEffect(() => {
     if (isActive && audioStream) {
@@ -84,14 +86,11 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
     }
 
     try {
-      // Connect to real-time transcription WebSocket
-      const wsUrl = `wss://qlfqnclqowlljjcbeunz.functions.supabase.co/transcribe-audio-realtime`;
-      wsRef.current = new WebSocket(wsUrl);
+      wsRef.current = new WebSocket(supabaseWSURL);
 
       wsRef.current.onopen = () => {
         setIsConnected(true);
         console.log('Connected to real-time transcription service');
-        
         toast({
           title: "Transcription Started",
           description: "Real-time audio transcription is now active",
@@ -118,23 +117,54 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
               return updated;
             });
           }
+          if (data.error) {
+            toast({
+              title: "Transcription Error",
+              description: data.error,
+              variant: "destructive"
+            });
+            console.error("Transcription WS error:", data.error);
+          }
         } catch (error) {
           console.error('Error parsing transcription message:', error);
+          toast({
+            title: "Message Parse Error",
+            description: (error as Error)?.message || "Unknown error",
+            variant: "destructive"
+          });
         }
       };
 
       wsRef.current.onerror = (error) => {
         console.error('WebSocket error:', error);
+        setIsConnected(false);
         toast({
           title: "Connection Error",
-          description: "Failed to connect to transcription service",
+          description: "Failed to connect to transcription service. Retrying in 3s...",
           variant: "destructive"
         });
+
+        // Retry logic, active only while transcription is active
+        setTimeout(() => {
+          if (isActive && audioStream) {
+            startTranscription();
+          }
+        }, 3000);
       };
 
-      wsRef.current.onclose = () => {
+      wsRef.current.onclose = (event) => {
         setIsConnected(false);
         console.log('WebSocket connection closed');
+        if (event.code !== 1000 && isActive && audioStream) {
+          toast({
+            title: "Lost Connection",
+            description: "Reconnecting in 3s...",
+            variant: "destructive"
+          });
+          setTimeout(() => {
+            startTranscription();
+          }, 3000);
+        }
       };
 
       // Set up MediaRecorder for audio capture
