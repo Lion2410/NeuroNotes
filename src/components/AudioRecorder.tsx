@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Mic, MicOff, Square } from 'lucide-react';
+import { Mic, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -21,6 +21,9 @@ interface AudioRecorderProps {
 
 const supabaseWSURL = 'https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio-realtime';
 
+const CHUNK_SECONDS = 10;
+const PCM_SAMPLE_RATE = 24000;
+
 const AudioRecorder: React.FC<AudioRecorderProps> = ({
   onTranscription,
   onFinalized,
@@ -30,165 +33,142 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   const { user } = useAuth();
   const { toast } = useToast();
 
-  // Device selection
-  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
-
-  // Transcript
   const [transcript, setTranscript] = useState('');
   const [segments, setSegments] = useState<SpeakerSegment[]>([]);
-
-  // Recording/processing
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const mediaStreamSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const recorderWorkerRef = useRef<Worker | null>(null);
-  const chunkTimerRef = useRef<number | null>(null);
-  const sessionIdRef = useRef<string | null>(null);
-
-  // For accumulating final transcript (across all chunks)
-  const fullSpeakerSegmentsRef = useRef<SpeakerSegment[]>([]);
-  const audioChunksRef = useRef<Blob[]>([]);
-
-  // Recording state
   const [processing, setProcessing] = useState(false);
 
-  // VAD thresholds
-  const VAD_SENSITIVITY = 0.02; // Adjust for sensitivity (lower = more sensitive)
-  const CHUNK_SECONDS = 7; // 5-10s chunks
-  const PCM_SAMPLE_RATE = 24000; // 24kHz target
+  // references
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const timerRef = useRef<number | null>(null);
+  const recBuffersRef = useRef<Float32Array[]>([]);
+  const sessionIdRef = useRef<string | null>(null);
 
-  // Device List
-  useEffect(() => {
-    if (!navigator.mediaDevices) return;
-    navigator.mediaDevices.enumerateDevices()
-      .then(devices => {
-        const inputs = devices.filter(d => d.kind === 'audioinput');
-        setAudioInputs(inputs);
-        if (!selectedDeviceId && inputs.length > 0) {
-          setSelectedDeviceId(inputs[0].deviceId);
-        }
-      });
-  }, []);
+  const fullSpeakerSegmentsRef = useRef<SpeakerSegment[]>([]);
 
-  // Start Recording with VAD and chunk logic
-  const startRecording = useCallback(async () => {
-    try {
-      setTranscript('');
-      setSegments([]);
-      setProcessing(false);
-
-      // 1. Get selected device stream
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
-          echoCancellation: true,
-          noiseSuppression: true,
-          sampleRate: PCM_SAMPLE_RATE,
-        }
-      });
-
-      // 2. Build audio context and needed processing nodes
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: PCM_SAMPLE_RATE });
-      audioContextRef.current = audioContext;
-      const source = audioContext.createMediaStreamSource(stream);
-      mediaStreamSourceRef.current = source;
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 1024;
-      analyserRef.current = analyser;
-      source.connect(analyser);
-
-      // For raw samples for PCM capture
-      const bufferLength = analyser.frequencyBinCount;
-      let chunkBuffers: Float32Array[] = [];
-      let vadActive = false;
-      let chunkStartTime = Date.now();
-
-      // Collect samples in a ScriptProcessorNode
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
-      source.connect(processor);
-      processor.connect(audioContext.destination);
-
-      processor.onaudioprocess = (event) => {
-        const input = event.inputBuffer.getChannelData(0);
-        const inputClone = new Float32Array(input);
-        chunkBuffers.push(inputClone);
-
-        // VAD: simple amplitude check
-        let rms = 0;
-        for (let i = 0; i < input.length; ++i) {
-          rms += input[i] * input[i];
-        }
-        rms = Math.sqrt(rms / input.length);
-        if (rms > VAD_SENSITIVITY) vadActive = true;
-
-        const now = Date.now();
-        if (vadActive && ((now - chunkStartTime) >= CHUNK_SECONDS * 1000)) {
-          vadActive = false;
-          const chunk = flattenBuffers(chunkBuffers);
-          chunkBuffers = [];
-          chunkStartTime = now;
-          processChunk(chunk, audioContext.sampleRate);
-        }
-      };
-
-      // If user stops before chunk length reached, flush last buffer
-      recorderWorkerRef.current = {
-        terminate: () => {
-          try {
-            processor.disconnect();
-            source.disconnect();
-            analyser.disconnect();
-            audioContext.close();
-            stream.getTracks().forEach(track => track.stop());
-          } catch { }
-        }
-      } as any;
-
-      setIsRecording(true);
-      toast({
-        title: "Recording Started",
-        description: "Speak clearly for best transcription results",
-      });
-
-    } catch (error) {
-      console.error('Error starting recording:', error);
-      toast({
-        title: "Recording Error",
-        description: "Could not access microphone. Please check permissions.",
-        variant: "destructive",
-      });
-      setIsRecording(false);
-      setProcessing(false);
-    }
-  }, [selectedDeviceId, setIsRecording, toast]);
-
-  // Stop recording, flush buffer
+  // Cleanup and finalize
   const stopRecording = useCallback(() => {
     setIsRecording(false);
-    setProcessing(true);
+    setProcessing(false);
 
-    // Clean up processing nodes
-    if (recorderWorkerRef.current) recorderWorkerRef.current.terminate();
-
-    // Flush any remaining buffer
-    if (audioContextRef.current && mediaStreamSourceRef.current) {
-      // intentionally no logic, buffers are flushed by chunking above
+    // Stop everything
+    if (processorRef.current) processorRef.current.disconnect();
+    if (sourceRef.current) sourceRef.current.disconnect();
+    if (audioContextRef.current) {
       audioContextRef.current.close();
     }
 
-    // Save accumulated transcript as finalized text to notes using onFinalized
-    const transcriptText = fullSpeakerSegmentsRef.current.map(seg =>
-      `[${seg.speaker}]: ${seg.text}`
-    ).join('\n');
+    // Finalize transcript
+    const transcriptText = fullSpeakerSegmentsRef.current
+      .map(seg => `[${seg.speaker}]: ${seg.text}`)
+      .join('\n');
     onFinalized(transcriptText, [...fullSpeakerSegmentsRef.current]);
-
-    setProcessing(false);
     toast({
       title: "Recording Stopped",
       description: "Transcription finalized and ready.",
     });
-  }, [setIsRecording, onFinalized, toast]);
+  }, [onFinalized, setIsRecording, toast]);
+
+  // Start Recording
+  const startRecording = useCallback(async () => {
+    setTranscript('');
+    setSegments([]);
+    setProcessing(false);
+    fullSpeakerSegmentsRef.current = [];
+    sessionIdRef.current = null;
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: PCM_SAMPLE_RATE });
+      audioContextRef.current = audioContext;
+
+      const source = audioContext.createMediaStreamSource(stream);
+      sourceRef.current = source;
+
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+
+      recBuffersRef.current = [];
+      timerRef.current = window.setInterval(() => handleChunk(audioContext.sampleRate), CHUNK_SECONDS * 1000);
+
+      processor.onaudioprocess = (event) => {
+        const input = event.inputBuffer.getChannelData(0);
+        // Accumulate raw audio data
+        recBuffersRef.current.push(new Float32Array(input));
+      };
+
+      setIsRecording(true);
+      toast({
+        title: "Recording Started",
+        description: "Speak clearly for best transcription results.",
+      });
+    } catch (error) {
+      setIsRecording(false);
+      setProcessing(false);
+      toast({
+        title: "Recording Error",
+        description: "Microphone access failed.",
+        variant: "destructive",
+      });
+    }
+  }, [setIsRecording, toast]);
+
+  // Convert & send chunk to edge func
+  const handleChunk = async (sampleRate: number) => {
+    if (!recBuffersRef.current.length) return;
+    setProcessing(true);
+    const floatBuf = flattenBuffers(recBuffersRef.current);
+    recBuffersRef.current = [];
+    const pcmData = await toPCMBuffer(floatBuf, sampleRate);
+
+    const formData = new FormData();
+    formData.append('audio', new Blob([pcmData], { type: 'audio/raw' }), 'audio.pcm');
+    formData.append('mode', 'microphone');
+    if (sessionIdRef.current) formData.append('sessionId', sessionIdRef.current);
+    if (user?.id) formData.append('deviceLabel', 'microphone');
+
+    try {
+      const res = await fetch(supabaseWSURL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('sb-access-token') || ''}`
+        },
+        body: formData
+      });
+
+      if (!res.ok) throw new Error("Transcription failed");
+      const result = await res.json();
+      if (result.sessionId) sessionIdRef.current = result.sessionId;
+
+      if (result.speakerSegments && Array.isArray(result.speakerSegments)) {
+        fullSpeakerSegmentsRef.current = [
+          ...fullSpeakerSegmentsRef.current,
+          ...(result.speakerSegments as SpeakerSegment[])
+        ];
+        setSegments([...fullSpeakerSegmentsRef.current]);
+        const transText = (result.speakerSegments as SpeakerSegment[])
+          .map(seg => `[${seg.speaker}]: ${seg.text}`).join('\n');
+        setTranscript(prev => prev + (transText ? '\n' + transText : ''));
+        onTranscription(transText);
+      } else if (result.transcript) {
+        setTranscript(prev => prev + (result.transcript ? '\n' + result.transcript : ''));
+        onTranscription(result.transcript);
+      }
+    } catch (err) {
+      toast({
+        title: "Transcription Error",
+        description: "Failed to transcribe audio.",
+        variant: "destructive"
+      });
+      setIsRecording(false);
+      stopRecording();
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   // Helper: flatten array of Float32 arrays to 1D Float32Array
   function flattenBuffers(buffers: Float32Array[]) {
@@ -202,12 +182,9 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     return result;
   }
 
-  // Helper: float32 -> PCM16, resample to 24kHz
+  // Resample & PCM16
   async function toPCMBuffer(floatBuf: Float32Array, originalSampleRate: number): Promise<Uint8Array> {
-    if (originalSampleRate === PCM_SAMPLE_RATE) {
-      // Just convert to PCM16
-      return float32ToPCM16(floatBuf);
-    }
+    if (originalSampleRate === PCM_SAMPLE_RATE) return float32ToPCM16(floatBuf);
     // Resample using OfflineAudioContext
     const frames = Math.ceil(floatBuf.length * PCM_SAMPLE_RATE / originalSampleRate);
     const offlineCtx = new OfflineAudioContext(1, frames, PCM_SAMPLE_RATE);
@@ -234,71 +211,33 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     return out;
   }
 
-  // Chunk processor - sends to edge function, updates transcript live
-  async function processChunk(floatBuf: Float32Array, sampleRate: number) {
-    setProcessing(true);
-
-    // Convert to PCM16 24kHz
-    const pcmData = await toPCMBuffer(floatBuf, sampleRate);
-
-    // Send as multipart/form-data
-    const formData = new FormData();
-    formData.append('audio', new Blob([pcmData], { type: 'audio/raw' }), 'audio.pcm');
-    formData.append('mode', 'microphone');
-    // Forward sessionId for session log (first chunk returns it)
-    if (sessionIdRef.current) {
-      formData.append('sessionId', sessionIdRef.current);
-    }
-    if (user?.id) {
-      formData.append('deviceLabel', 'microphone');
-    }
-
-    try {
-      const res = await fetch(supabaseWSURL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('sb-access-token') || ''}`
-        },
-        body: formData
-      });
-      if (!res.ok) {
-        throw new Error('Transcription failed');
+  // When isRecording toggles, start or stop logic
+  useEffect(() => {
+    if (isRecording) {
+      startRecording();
+      return () => {};
+    } else {
+      // Stop everything, flush remaining buffer
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
       }
-      const result = await res.json();
-      if (result.sessionId) sessionIdRef.current = result.sessionId;
-
-      // Parse result.speakerSegments for speaker-labeled transcript
-      if (result.speakerSegments && Array.isArray(result.speakerSegments)) {
-        // Accumulate
-        fullSpeakerSegmentsRef.current = [
-          ...fullSpeakerSegmentsRef.current,
-          ...(result.speakerSegments as SpeakerSegment[])
-        ];
-        setSegments([...fullSpeakerSegmentsRef.current]);
-        const transText = (result.speakerSegments as SpeakerSegment[])
-          .map(seg => `[${seg.speaker}]: ${seg.text}`).join('\n');
-        setTranscript(prev => prev + (transText ? '\n' + transText : ''));
-        onTranscription(transText);
-      } else if (result.transcript) {
-        setTranscript(prev => prev + (result.transcript ? '\n' + result.transcript : ''));
-        onTranscription(result.transcript);
+      if (recBuffersRef.current.length && audioContextRef.current) {
+        // Process remaining audio chunk
+        handleChunk(audioContextRef.current.sampleRate);
       }
-    } catch (err) {
-      toast({
-        title: "Transcription Error",
-        description: "Failed to transcribe audio. Please try again.",
-        variant: "destructive",
-      });
-      setIsRecording(false);
-    } finally {
-      setProcessing(false);
+      stopRecording();
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRecording]);
 
-  // Stop on unmount
+  // Clean up on unmount
   useEffect(() => {
     return () => {
-      if (recorderWorkerRef.current) recorderWorkerRef.current.terminate();
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (processorRef.current) processorRef.current.disconnect();
+      if (sourceRef.current) sourceRef.current.disconnect();
+      if (audioContextRef.current) audioContextRef.current.close();
     };
   }, []);
 
@@ -309,7 +248,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
           <h3 className="text-lg font-semibold text-white">Live Recording</h3>
           <div className="flex items-center gap-2">
             <Button
-              onClick={isRecording ? stopRecording : startRecording}
+              onClick={() => setIsRecording(!isRecording)}
               variant={isRecording ? "destructive" : "default"}
               className={isRecording ? "bg-red-600 hover:bg-red-700" : "bg-purple-600 hover:bg-purple-700"}
               disabled={processing}
@@ -327,19 +266,6 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
               )}
             </Button>
           </div>
-        </div>
-        <div className="mb-3">
-          <label className="text-slate-200 mr-3">Select Input:</label>
-          <select
-            value={selectedDeviceId ?? ''}
-            onChange={e => setSelectedDeviceId(e.target.value)}
-            className="bg-slate-800 text-white rounded px-2 py-1"
-            disabled={isRecording}
-          >
-            {audioInputs.map(device => (
-              <option key={device.deviceId} value={device.deviceId}>{device.label || `Device ${device.deviceId}`}</option>
-            ))}
-          </select>
         </div>
         {isRecording && (
           <div className="flex items-center gap-2 mb-4">

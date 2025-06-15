@@ -542,7 +542,13 @@ const JoinMeeting = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <form onSubmit={handleAudioCaptureStart} className="space-y-5 md:space-y-6">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      // No more "Ready Audio Capture"
+                    }}
+                    className="space-y-5 md:space-y-6"
+                  >
                     <div className="space-y-2">
                       <Label htmlFor="note-title" className="text-white">Title</Label>
                       <Input
@@ -553,6 +559,7 @@ const JoinMeeting = () => {
                         onChange={(e) => setAudioCaptureTitle(e.target.value)}
                         className="bg-white/10 border-white/20 text-white placeholder:text-slate-400"
                         required
+                        disabled={isRecording}
                       />
                       <p className="text-xs md:text-sm text-slate-400">
                         The title will be used to save your transcription note.
@@ -560,68 +567,39 @@ const JoinMeeting = () => {
                     </div>
                     <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
                       <Button
-                        type="submit"
-                        disabled={loading || !audioCaptureTitle.trim()}
-                        className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-3 py-2"
+                        type="button"
+                        onClick={() => setIsRecording((prev) => !prev)}
+                        disabled={!audioCaptureTitle.trim()}
+                        className={isRecording
+                          ? "flex-1 bg-red-600 hover:bg-red-700 text-white px-3 py-2"
+                          : "flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-2"}
                       >
-                        {loading ? "Initializing..." : (
+                        {isRecording ? (
                           <>
-                            <Play className="h-4 w-4 mr-2" />
-                            Ready Audio Capture
+                            <Square className="h-4 w-4 mr-2" />
+                            Stop Recording
+                          </>
+                        ) : (
+                          <>
+                            <Mic className="h-4 w-4 mr-2" />
+                            Start Recording
                           </>
                         )}
                       </Button>
-                      {!isRecording ? (
-                        <Button
-                          type="button"
-                          onClick={startRealTimeTranscription}
-                          className={`flex-1 bg-green-600 hover:bg-green-700 px-3 py-2`}
-                          disabled={loading || !audioCaptureTitle.trim() || !!microphonePermError}
-                        >
-                          <Mic className="h-4 w-4 mr-2" />
-                          Start Recording
-                        </Button>
-                      ) : (
-                        <Button
-                          type="button"
-                          onClick={stopRealTimeTranscription}
-                          className="flex-1 bg-red-600 hover:bg-red-700 px-3 py-2"
-                        >
-                          <Square className="h-4 w-4 mr-2" />
-                          Stop Recording
-                        </Button>
-                      )}
                     </div>
                   </form>
-                  {meetingMode === "audio" && (
-                    <AudioRecorder
-                      onTranscription={(chunkText) => {
-                        setLiveTranscript(prev => prev + (chunkText ? "\n" + chunkText : ""));
-                      }}
-                      onFinalized={(fullText, segmentsArr) => {
-                        setLiveTranscript(fullText);
-                        setSpeakerSegments(segmentsArr);
-                        setTranscriptionResults([fullText]);
-                      }}
-                      isRecording={isRecording}
-                      setIsRecording={setIsRecording}
-                    />
-                  )}
-                  {/* Show microphone permission error if present */}
-                  {microphonePermError && (
-                    <div className="mt-4 bg-red-900/40 border border-red-400 text-white p-3 rounded flex flex-col sm:flex-row items-center gap-3">
-                      <AlertCircle className="h-5 w-5 text-red-400" />
-                      <div className="flex-1">
-                        <b>Microphone Access Denied:</b>
-                        <div className="mt-1 text-xs md:text-sm">
-                          {microphonePermError}
-                          <p className="mt-2 text-yellow-200">To re-enable, check your browser's address bar for a blocked camera/mic icon and allow access, then reload this page. <br />
-                          On Chrome: Click the lock icon → Site settings → Allow Microphone, then reload.<br />
-                          If the problem persists, try another browser.</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  <AudioRecorder
+                    onTranscription={(chunkText) => {
+                      setLiveTranscript(prev => prev + (chunkText ? "\n" + chunkText : ""));
+                    }}
+                    onFinalized={(fullText, segmentsArr) => {
+                      setLiveTranscript(fullText);
+                      setSpeakerSegments(segmentsArr);
+                      setTranscriptionResults([fullText]);
+                    }}
+                    isRecording={isRecording}
+                    setIsRecording={setIsRecording}
+                  />
                   {/* Live Transcript Display */}
                   {(isRecording || liveTranscript) && (
                     <div className="mt-4 md:mt-6">
@@ -631,20 +609,6 @@ const JoinMeeting = () => {
                           {liveTranscript || (isRecording ? "Listening..." : "No transcript yet")}
                         </p>
                       </div>
-                    </div>
-                  )}
-                  {connectionStatus === 'error' && !microphonePermError && (
-                    <div className="mt-4 flex flex-col sm:flex-row items-center gap-2">
-                      <Button
-                        type="button"
-                        onClick={startRealTimeTranscription}
-                        variant="secondary"
-                        className="bg-yellow-500 hover:bg-yellow-600 text-black"
-                      >
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Retry Connection
-                      </Button>
-                      <span className="text-yellow-200 ml-2 text-xs">Trouble connecting? Check Deepgram API Key on backend.</span>
                     </div>
                   )}
                 </CardContent>
