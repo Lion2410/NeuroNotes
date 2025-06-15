@@ -1,4 +1,3 @@
-
 // RealTimeTranscription rewritten for polling HTTP + PCM16 upload (no websockets).
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -91,6 +90,11 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
   const sessionStartRef = useRef<Date | null>(null);
 
   const { toast } = useToast();
+
+  // Debug state for UI
+  const [lastUploadDebug, setLastUploadDebug] = useState<{
+    mode: string, sessionId: string|null, deviceLabel: string, chunkLen: number, pcmLen: number, timestamp: string
+  }|null>(null);
 
   // Timer
   useEffect(() => {
@@ -247,23 +251,52 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
       const pcmBuf = floatTo16BitPCM(mono24kFloat32);
 
       // Log: show PCM buffer length, first 32 bytes
-      console.log(`[AUDIO_DEBUG] [CHUNK] PCM16 buffer (bytes): length=${pcmBuf.length} first32=`, Array.from(pcmBuf.slice(0,32)));
+      console.log(`[DEBUG_UPLOAD] PCM16 Buffer: bytes=${pcmBuf.length}`);
 
-      // package into blob as audio/raw
-      const blob = new Blob([pcmBuf], { type: 'audio/raw' });
-
-      // Compose multipart form
+      // Compose formData with explicit logs before each append
       const formData = new FormData();
+
+      // Compose values for debug tracking before appending to formData
+      const debugPayload = {
+        mode: "virtualaudio",
+        sessionId,
+        deviceLabel: "virtualaudio",
+        chunkLen: samples.length,
+        pcmLen: pcmBuf.length,
+        timestamp: new Date().toLocaleTimeString()
+      };
+
+      // LOG before formData mutation
+      console.log("[DEBUG_UPLOAD] Will append fields to FormData:", {
+        mode: debugPayload.mode,
+        deviceLabel: debugPayload.deviceLabel,
+        sessionId: debugPayload.sessionId,
+        pcmBytes: debugPayload.pcmLen,
+        chunkSamples: debugPayload.chunkLen,
+        timestamp: debugPayload.timestamp
+      });
+
+      // append audio chunk
+      const blob = new Blob([pcmBuf], { type: 'audio/raw' });
+      console.log("[DEBUG_UPLOAD] FormData.append('audio', Blob, 'audio.pcm')", blob.size, blob.type);
       formData.append("audio", blob, "audio.pcm");
-      // ALWAYS send "virtualaudio" -- do not send "microphone"
+
+      // append fields
+      console.log("[DEBUG_UPLOAD] FormData.append('mode', 'virtualaudio')");
       formData.append("mode", "virtualaudio");
-      if (sessionId) formData.append("sessionId", sessionId);
+
+      if (sessionId) {
+        console.log(`[DEBUG_UPLOAD] FormData.append('sessionId', '${sessionId}')`);
+        formData.append("sessionId", sessionId);
+      }
+
+      console.log("[DEBUG_UPLOAD] FormData.append('deviceLabel', 'virtualaudio')");
       formData.append("deviceLabel", "virtualaudio");
 
-      // DEBUG: Show upload
-      console.log("[AUDIO_DEBUG] [POST] Uploading chunk: bytes=", pcmBuf.length, "mode=virtualaudio", "sessionId", sessionId);
+      // Save latest debug info for UI
+      setLastUploadDebug(debugPayload);
 
-      // POST to edge function
+      // POST: submit chunk
       const response = await fetch("https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio-realtime", {
         method: "POST",
         headers: {
@@ -444,6 +477,20 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
         )}
       </CardHeader>
       <CardContent>
+        {/* --- NEW DEBUG PANEL --- */}
+        <div className="mb-2 max-w-full">
+          <div className="rounded bg-slate-900/70 p-2 text-xs text-slate-300 flex flex-wrap items-center gap-x-4 gap-y-1 overflow-x-auto">
+            <span className="font-semibold text-purple-300">UPLOAD DEBUG</span>
+            <span>mode: <span className="font-mono text-white">{lastUploadDebug?.mode || 'n/a'}</span></span>
+            <span>sessionId: <span className="font-mono text-white">{lastUploadDebug?.sessionId || 'n/a'}</span></span>
+            <span>deviceLabel: <span className="font-mono text-white">{lastUploadDebug?.deviceLabel || 'n/a'}</span></span>
+            <span>PCM bytes: <span className="font-mono">{lastUploadDebug?.pcmLen ?? '--'}</span></span>
+            <span>Chunk samples: <span className="font-mono">{lastUploadDebug?.chunkLen ?? '--'}</span></span>
+            <span>Time: <span className="font-mono">{lastUploadDebug?.timestamp ?? '--'}</span></span>
+          </div>
+        </div>
+        {/* --- END DEBUG PANEL --- */}
+
         {lastError &&
           <div className="mb-2 bg-red-900/30 border border-red-400 text-white p-3 rounded flex items-center justify-between">
             <span className="truncate">{lastError}</span>
@@ -511,4 +558,3 @@ export default RealTimeTranscription;
 
 // This file is now very long (>350 lines).
 // Consider refactoring into smaller hooks/components for maintainability!
-
