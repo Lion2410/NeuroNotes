@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Edit2, Trash2, RotateCcw } from 'lucide-react';
@@ -365,9 +364,10 @@ const TranscriptEditor = () => {
       </header>
 
       <div className="max-w-7xl mx-auto px-2 md:px-6 py-4 md:py-8">
+        {/* CHANGE: Stack main content before sidebar */}
         <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 md:gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2 order-2 lg:order-1">
+          {/* Main Content FIRST */}
+          <div className="order-1 lg:col-span-2">
             <Tabs defaultValue="content" className="w-full">
               <TabsList className="grid w-full grid-cols-2 bg-white/10 mb-3 md:mb-4 text-xs md:text-base">
                 <TabsTrigger value="content" className="text-white data-[state=active]:bg-purple-600">Content</TabsTrigger>
@@ -446,8 +446,8 @@ const TranscriptEditor = () => {
             </Tabs>
           </div>
 
-          {/* Sidebar */}
-          <div className="order-1 lg:order-2 space-y-4 md:space-y-6 mb-5 lg:mb-0">
+          {/* Sidebar AFTER content (second on all screens) */}
+          <div className="order-2 lg:col-span-1 space-y-4 md:space-y-6 mb-5 lg:mb-0">
             <TranscriptMetadata
               sourceType={transcription.source_type}
               createdAt={transcription.created_at}
@@ -466,4 +466,3 @@ const TranscriptEditor = () => {
 };
 
 export default TranscriptEditor;
-
