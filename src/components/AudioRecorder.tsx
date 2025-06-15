@@ -138,6 +138,52 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     }
   }, [setIsRecording, toast]);
 
+  // Helper: flatten array of Float32 arrays to 1D Float32Array
+  function flattenBuffers(buffers: Float32Array[]) {
+    const len = buffers.reduce((sum, arr) => sum + arr.length, 0);
+    const result = new Float32Array(len);
+    let offset = 0;
+    for (const arr of buffers) {
+      result.set(arr, offset);
+      offset += arr.length;
+    }
+    return result;
+  }
+
+  // Enhanced: Resample & PCM16
+  async function toPCMBuffer(floatBuf: Float32Array, originalSampleRate: number): Promise<Uint8Array> {
+    if (originalSampleRate === PCM_SAMPLE_RATE) return float32ToPCM16(floatBuf);
+    const frames = Math.ceil(floatBuf.length * PCM_SAMPLE_RATE / originalSampleRate);
+    const offlineCtx = new OfflineAudioContext(1, frames, PCM_SAMPLE_RATE);
+    const buffer = offlineCtx.createBuffer(1, floatBuf.length, originalSampleRate);
+    buffer.copyToChannel(floatBuf, 0, 0);
+    const src = offlineCtx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(offlineCtx.destination);
+    src.start();
+    const rendered = await offlineCtx.startRendering();
+    const resampled = rendered.getChannelData(0);
+    return float32ToPCM16(resampled);
+  }
+
+  // Enhanced: True PCM16 conversion with logging
+  function float32ToPCM16(floatBuf: Float32Array): Uint8Array {
+    const out = new Uint8Array(floatBuf.length * 2);
+    const view = new DataView(out.buffer);
+    for (let i = 0; i < floatBuf.length; i++) {
+      let s = Math.max(-1, Math.min(1, floatBuf[i]));
+      // Apply correct scaling and conversion to int16
+      const sample = s < 0 ? s * 32768 : s * 32767;
+      view.setInt16(i * 2, sample, true); // little-endian
+    }
+    // Log first few bytes, length and type for debugging
+    console.log('[PCM16] Length:', out.length, 'First 16 bytes:', Array.from(out.slice(0,16)));
+    // Also log Base64 for diagnostics
+    const b64 = btoa(String.fromCharCode(...out.slice(0,64)));
+    console.log('[PCM16] Base64 first 64B:', b64);
+    return out;
+  }
+
   // Convert & send chunk to edge func
   const handleChunk = async (sampleRate: number) => {
     if (!recBuffersRef.current.length) return;
@@ -146,7 +192,11 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     recBuffersRef.current = [];
     const pcmData = await toPCMBuffer(floatBuf, sampleRate);
 
+    // Log prior to sending
+    console.log('[AudioRecorder] PCM chunk size:', pcmData.length, 'First bytes:', Array.from(pcmData.slice(0,16)));
+
     const formData = new FormData();
+    // NOTE: must be audio/raw with no header!
     formData.append('audio', new Blob([pcmData], { type: 'audio/raw' }), 'audio.pcm');
     formData.append('mode', 'microphone');
     if (sessionIdRef.current) formData.append('sessionId', sessionIdRef.current);
@@ -219,47 +269,6 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       setProcessing(false);
     }
   };
-
-  // Helper: flatten array of Float32 arrays to 1D Float32Array
-  function flattenBuffers(buffers: Float32Array[]) {
-    const len = buffers.reduce((sum, arr) => sum + arr.length, 0);
-    const result = new Float32Array(len);
-    let offset = 0;
-    for (const arr of buffers) {
-      result.set(arr, offset);
-      offset += arr.length;
-    }
-    return result;
-  }
-
-  // Resample & PCM16
-  async function toPCMBuffer(floatBuf: Float32Array, originalSampleRate: number): Promise<Uint8Array> {
-    if (originalSampleRate === PCM_SAMPLE_RATE) return float32ToPCM16(floatBuf);
-    // Resample using OfflineAudioContext
-    const frames = Math.ceil(floatBuf.length * PCM_SAMPLE_RATE / originalSampleRate);
-    const offlineCtx = new OfflineAudioContext(1, frames, PCM_SAMPLE_RATE);
-    const buffer = offlineCtx.createBuffer(1, floatBuf.length, originalSampleRate);
-    buffer.copyToChannel(floatBuf, 0, 0);
-    const src = offlineCtx.createBufferSource();
-    src.buffer = buffer;
-    src.connect(offlineCtx.destination);
-    src.start();
-    const rendered = await offlineCtx.startRendering();
-    const resampled = rendered.getChannelData(0);
-    return float32ToPCM16(resampled);
-  }
-
-  function float32ToPCM16(floatBuf: Float32Array): Uint8Array {
-    const out = new Uint8Array(floatBuf.length * 2);
-    for (let i = 0; i < floatBuf.length; i++) {
-      let s = Math.max(-1, Math.min(1, floatBuf[i]));
-      s = s < 0 ? s * 32768 : s * 32767;
-      const val = Math.round(s);
-      out[i * 2] = val & 0xFF;
-      out[i * 2 + 1] = (val >> 8) & 0xFF;
-    }
-    return out;
-  }
 
   // Elapsed MM:SS formatting
   const renderDuration = () => {
