@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import VirtualAudioSetup from '@/components/VirtualAudioSetup';
 import RealTimeTranscription from '@/components/RealTimeTranscription';
 import { VirtualAudioDevice } from '@/utils/VirtualAudioDriver';
+
 interface TranscriptSegment {
   id: string;
   timestamp: string;
@@ -20,6 +21,7 @@ interface TranscriptSegment {
   text: string;
   confidence: number;
 }
+
 const JoinMeeting = () => {
   const [meetingUrl, setMeetingUrl] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,26 +33,24 @@ const JoinMeeting = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [meetingBotStatus, setMeetingBotStatus] = useState<'idle' | 'starting' | 'success' | 'error'>('idle');
-
+  
   // Virtual audio states
   const [selectedVirtualDevice, setSelectedVirtualDevice] = useState<VirtualAudioDevice | null>(null);
   const [virtualAudioStream, setVirtualAudioStream] = useState<MediaStream | null>(null);
   const [isVirtualAudioActive, setIsVirtualAudioActive] = useState(false);
   const [transcriptSegments, setTranscriptSegments] = useState<TranscriptSegment[]>([]);
   const [meetingMode, setMeetingMode] = useState<'bot' | 'virtual'>('bot');
-
+  
   // ... keep existing code (refs and other state)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const {
-    user
-  } = useAuth();
-  const {
-    toast
-  } = useToast();
+  
+  const { user } = useAuth();
+  const { toast } = useToast();
   const navigate = useNavigate();
+
   useEffect(() => {
     return () => {
       // Cleanup on unmount
@@ -74,22 +74,28 @@ const JoinMeeting = () => {
     setSelectedVirtualDevice(device);
     console.log('Selected virtual audio device:', device);
   };
+
   const handleVirtualAudioSetupComplete = (stream: MediaStream) => {
     setVirtualAudioStream(stream);
     toast({
       title: "Virtual Audio Ready",
-      description: "Ready to capture meeting audio for transcription"
+      description: "Ready to capture meeting audio for transcription",
     });
   };
+
   const handleTranscriptUpdate = (segments: TranscriptSegment[]) => {
     setTranscriptSegments(segments);
     // Combine all segments into a single transcript for saving
-    const combinedTranscript = segments.map(segment => `[${segment.timestamp}] ${segment.speaker}: ${segment.text}`).join('\n');
+    const combinedTranscript = segments
+      .map(segment => `[${segment.timestamp}] ${segment.speaker}: ${segment.text}`)
+      .join('\n');
     setLiveTranscript(combinedTranscript);
   };
+
   const toggleVirtualAudioTranscription = () => {
     setIsVirtualAudioActive(!isVirtualAudioActive);
   };
+
   const handleJoinMeeting = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!meetingUrl.trim()) {
@@ -100,26 +106,26 @@ const JoinMeeting = () => {
       });
       return;
     }
+    
     setLoading(true);
     setMeetingBotStatus('starting');
+    
     try {
       // Call the meeting bot function
-      const {
-        data,
-        error
-      } = await supabase.functions.invoke('meeting-bot', {
-        body: {
-          meetingUrl
-        }
+      const { data, error } = await supabase.functions.invoke('meeting-bot', {
+        body: { meetingUrl }
       });
+
       if (error) {
         throw error;
       }
+
       setMeetingBotStatus('success');
       toast({
         title: "Meeting Bot Started",
         description: "The bot is joining the meeting and will start transcribing."
       });
+
     } catch (error: any) {
       setMeetingBotStatus('error');
       toast({
@@ -131,15 +137,14 @@ const JoinMeeting = () => {
       setLoading(false);
     }
   };
+
   const startRealTimeTranscription = async () => {
     try {
       setConnectionStatus('connecting');
-
+      
       // Request microphone access
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true
-      });
-
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
       // Create MediaRecorder
       mediaRecorderRef.current = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus'
@@ -148,6 +153,7 @@ const JoinMeeting = () => {
       // Setup WebSocket connection for real-time transcription
       const wsUrl = `wss://qlfqnclqowlljjcbeunz.functions.supabase.co/transcribe-audio-realtime`;
       wsRef.current = new WebSocket(wsUrl);
+      
       wsRef.current.onopen = () => {
         setIsConnected(true);
         setConnectionStatus('connected');
@@ -156,10 +162,12 @@ const JoinMeeting = () => {
           description: "Real-time transcription started."
         });
       };
-      wsRef.current.onmessage = event => {
+
+      wsRef.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           console.log('WebSocket message received:', data);
+          
           if (data.type === 'transcript' && data.transcript) {
             setLiveTranscript(prev => prev + ' ' + data.transcript);
           } else if (data.type === 'connection' && data.status === 'connected') {
@@ -176,7 +184,8 @@ const JoinMeeting = () => {
           console.error('Error parsing WebSocket message:', error);
         }
       };
-      wsRef.current.onerror = error => {
+
+      wsRef.current.onerror = (error) => {
         console.error('WebSocket error:', error);
         setConnectionStatus('error');
         setIsConnected(false);
@@ -186,11 +195,12 @@ const JoinMeeting = () => {
           variant: "destructive"
         });
       };
-      wsRef.current.onclose = event => {
+
+      wsRef.current.onclose = (event) => {
         console.log('WebSocket closed:', event.code, event.reason);
         setIsConnected(false);
         setConnectionStatus('idle');
-
+        
         // Auto-reconnect if it wasn't a manual close
         if (event.code !== 1000 && isRecording) {
           console.log('Attempting to reconnect...');
@@ -201,7 +211,7 @@ const JoinMeeting = () => {
       };
 
       // Setup MediaRecorder events
-      mediaRecorderRef.current.ondataavailable = async event => {
+      mediaRecorderRef.current.ondataavailable = async (event) => {
         if (event.data.size > 0 && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
           try {
             // Convert audio blob to base64 and send via WebSocket
@@ -225,6 +235,7 @@ const JoinMeeting = () => {
       // Start recording
       mediaRecorderRef.current.start(1000); // Send data every second
       setIsRecording(true);
+
     } catch (error: any) {
       setConnectionStatus('error');
       console.error('Microphone or WebSocket error:', error);
@@ -235,6 +246,7 @@ const JoinMeeting = () => {
       });
     }
   };
+
   const stopRealTimeTranscription = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
@@ -248,13 +260,14 @@ const JoinMeeting = () => {
     setIsRecording(false);
     setIsConnected(false);
     setConnectionStatus('idle');
-
+    
     // Add the live transcript to results
     if (liveTranscript.trim()) {
       setTranscriptionResults(prev => [...prev, liveTranscript.trim()]);
       setLiveTranscript('');
     }
   };
+
   const handleFileUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFile) {
@@ -265,10 +278,12 @@ const JoinMeeting = () => {
       });
       return;
     }
+    
     setLoading(true);
     try {
       const formData = new FormData();
       formData.append('audio', selectedFile);
+      
       const response = await fetch('https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio', {
         method: 'POST',
         headers: {
@@ -276,9 +291,11 @@ const JoinMeeting = () => {
         },
         body: formData
       });
+
       if (!response.ok) {
         throw new Error('Transcription failed');
       }
+
       const result = await response.json();
       if (result.transcript) {
         setTranscriptionResults([result.transcript]);
@@ -297,6 +314,7 @@ const JoinMeeting = () => {
       setLoading(false);
     }
   };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -311,8 +329,12 @@ const JoinMeeting = () => {
       }
     }
   };
+
   const handleSaveTranscription = async () => {
-    const transcriptToSave = transcriptSegments.length > 0 ? transcriptSegments.map(s => `[${s.timestamp}] ${s.speaker}: ${s.text}`).join('\n') : transcriptionResults.join(' ');
+    const transcriptToSave = transcriptSegments.length > 0 
+      ? transcriptSegments.map(s => `[${s.timestamp}] ${s.speaker}: ${s.text}`).join('\n')
+      : transcriptionResults.join(' ');
+
     if (!transcriptToSave.trim() || !user) {
       toast({
         title: "Nothing to Save",
@@ -321,27 +343,30 @@ const JoinMeeting = () => {
       });
       return;
     }
+
     setSaving(true);
     try {
-      const {
-        error
-      } = await supabase.from('transcriptions').insert({
-        user_id: user.id,
-        title: selectedFile?.name || selectedVirtualDevice?.label || 'Live Meeting Transcription',
-        content: transcriptToSave,
-        source_type: selectedFile ? 'upload' : 'meeting',
-        audio_url: null,
-        meeting_url: meetingUrl || null,
-        duration: null
-      });
+      const { error } = await supabase
+        .from('transcriptions')
+        .insert({
+          user_id: user.id,
+          title: selectedFile?.name || selectedVirtualDevice?.label || 'Live Meeting Transcription',
+          content: transcriptToSave,
+          source_type: selectedFile ? 'upload' : 'meeting',
+          audio_url: null,
+          meeting_url: meetingUrl || null,
+          duration: null
+        });
+
       if (error) {
         throw error;
       }
+
       toast({
         title: "Transcription Saved",
         description: "Your transcription has been saved to your notes."
       });
-
+      
       // Clear the results after saving
       setTranscriptionResults([]);
       setTranscriptSegments([]);
@@ -358,6 +383,7 @@ const JoinMeeting = () => {
       setSaving(false);
     }
   };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'success':
@@ -372,7 +398,9 @@ const JoinMeeting = () => {
         return null;
     }
   };
-  return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       {/* Header */}
       <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -418,7 +446,13 @@ const JoinMeeting = () => {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Button onClick={() => setMeetingMode('bot')} variant={meetingMode === 'bot' ? 'default' : 'outline'} className={`h-20 p-4 ${meetingMode === 'bot' ? 'bg-purple-600 hover:bg-purple-700' : 'border-white/30 hover:bg-white/10'} text-white`}>
+                  <Button
+                    onClick={() => setMeetingMode('bot')}
+                    variant={meetingMode === 'bot' ? 'default' : 'outline'}
+                    className={`h-20 p-4 ${meetingMode === 'bot' 
+                      ? 'bg-purple-600 hover:bg-purple-700' 
+                      : 'border-white/30 hover:bg-white/10'} text-white`}
+                  >
                     <div className="text-center">
                       <ExternalLink className="h-6 w-6 mx-auto mb-2" />
                       <div className="font-medium">Meeting Bot</div>
@@ -426,7 +460,13 @@ const JoinMeeting = () => {
                     </div>
                   </Button>
                   
-                  <Button onClick={() => setMeetingMode('virtual')} variant={meetingMode === 'virtual' ? 'default' : 'outline'} className="text-purple-900">
+                  <Button
+                    onClick={() => setMeetingMode('virtual')}
+                    variant={meetingMode === 'virtual' ? 'default' : 'outline'}
+                    className={`h-20 p-4 ${meetingMode === 'virtual' 
+                      ? 'bg-purple-600 hover:bg-purple-700' 
+                      : 'border-white/30 hover:bg-white/10'} text-white`}
+                  >
                     <div className="text-center">
                       <Headphones className="h-6 w-6 mx-auto mb-2" />
                       <div className="font-medium">Virtual Audio</div>
@@ -437,13 +477,26 @@ const JoinMeeting = () => {
               </CardContent>
             </Card>
 
-            {meetingMode === 'virtual' && <>
-                <VirtualAudioSetup onDeviceSelected={handleVirtualDeviceSelected} onSetupComplete={handleVirtualAudioSetupComplete} />
+            {meetingMode === 'virtual' && (
+              <>
+                <VirtualAudioSetup
+                  onDeviceSelected={handleVirtualDeviceSelected}
+                  onSetupComplete={handleVirtualAudioSetupComplete}
+                />
                 
-                {virtualAudioStream && <RealTimeTranscription audioStream={virtualAudioStream} onTranscriptUpdate={handleTranscriptUpdate} isActive={isVirtualAudioActive} onToggle={toggleVirtualAudioTranscription} />}
-              </>}
+                {virtualAudioStream && (
+                  <RealTimeTranscription
+                    audioStream={virtualAudioStream}
+                    onTranscriptUpdate={handleTranscriptUpdate}
+                    isActive={isVirtualAudioActive}
+                    onToggle={toggleVirtualAudioTranscription}
+                  />
+                )}
+              </>
+            )}
 
-            {meetingMode === 'bot' && <Card className="bg-white/10 backdrop-blur-md border-white/20">
+            {meetingMode === 'bot' && (
+              <Card className="bg-white/10 backdrop-blur-md border-white/20">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center gap-2">
                     <ExternalLink className="h-5 w-5 text-purple-400" />
@@ -455,71 +508,112 @@ const JoinMeeting = () => {
                 </CardHeader>
                 <CardContent>
                   {/* Status Alerts */}
-                  {meetingBotStatus === 'success' && <Alert className="mb-4 border-green-600 bg-green-600/10">
+                  {meetingBotStatus === 'success' && (
+                    <Alert className="mb-4 border-green-600 bg-green-600/10">
                       <CheckCircle className="h-4 w-4 text-green-400" />
                       <AlertDescription className="text-green-400">
                         Meeting bot successfully started and joined the meeting.
                       </AlertDescription>
-                    </Alert>}
+                    </Alert>
+                  )}
                   
-                  {meetingBotStatus === 'error' && <Alert className="mb-4 border-red-600 bg-red-600/10">
+                  {meetingBotStatus === 'error' && (
+                    <Alert className="mb-4 border-red-600 bg-red-600/10">
                       <XCircle className="h-4 w-4 text-red-400" />
                       <AlertDescription className="text-red-400">
                         Failed to start meeting bot. Please check your meeting URL and try again.
                       </AlertDescription>
-                    </Alert>}
+                    </Alert>
+                  )}
 
                   <form onSubmit={handleJoinMeeting} className="space-y-6">
                     <div className="space-y-2">
                       <Label htmlFor="meeting-url" className="text-white">Meeting URL</Label>
-                      <Input id="meeting-url" type="url" placeholder="https://meet.google.com/abc-defg-hij or https://zoom.us/j/..." value={meetingUrl} onChange={e => setMeetingUrl(e.target.value)} className="bg-white/10 border-white/20 text-white placeholder:text-slate-400" required />
+                      <Input
+                        id="meeting-url"
+                        type="url"
+                        placeholder="https://meet.google.com/abc-defg-hij or https://zoom.us/j/..."
+                        value={meetingUrl}
+                        onChange={(e) => setMeetingUrl(e.target.value)}
+                        className="bg-white/10 border-white/20 text-white placeholder:text-slate-400"
+                        required
+                      />
                       <p className="text-sm text-slate-400">
                         Supports Google Meet, Zoom, Microsoft Teams, and other popular platforms
                       </p>
                     </div>
 
                     <div className="flex gap-4">
-                      <Button type="submit" disabled={loading} className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white">
-                        {loading ? <div className="flex items-center gap-2">
+                      <Button
+                        type="submit"
+                        disabled={loading}
+                        className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+                      >
+                        {loading ? (
+                          <div className="flex items-center gap-2">
                             {getStatusIcon(meetingBotStatus)}
                             Starting Bot...
-                          </div> : <>
+                          </div>
+                        ) : (
+                          <>
                             <Play className="h-4 w-4 mr-2" />
                             Start Meeting Bot
-                          </>}
+                          </>
+                        )}
                       </Button>
                       
-                      {!isRecording ? <Button type="button" onClick={startRealTimeTranscription} className="bg-green-600 hover:bg-green-700">
+                      {!isRecording ? (
+                        <Button
+                          type="button"
+                          onClick={startRealTimeTranscription}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
                           <Mic className="h-4 w-4 mr-2" />
                           Start Recording
-                        </Button> : <Button type="button" onClick={stopRealTimeTranscription} className="bg-red-600 hover:bg-red-700">
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          onClick={stopRealTimeTranscription}
+                          className="bg-red-600 hover:bg-red-700"
+                        >
                           <Square className="h-4 w-4 mr-2" />
                           Stop Recording
-                        </Button>}
+                        </Button>
+                      )}
                     </div>
 
                     {/* Connection Status */}
-                    {connectionStatus !== 'idle' && <div className="flex items-center gap-2">
+                    {connectionStatus !== 'idle' && (
+                      <div className="flex items-center gap-2">
                         {getStatusIcon(connectionStatus)}
-                        <span className={`text-sm ${connectionStatus === 'connected' ? 'text-green-400' : connectionStatus === 'error' ? 'text-red-400' : 'text-yellow-400'}`}>
+                        <span className={`text-sm ${
+                          connectionStatus === 'connected' ? 'text-green-400' :
+                          connectionStatus === 'error' ? 'text-red-400' :
+                          'text-yellow-400'
+                        }`}>
                           {connectionStatus === 'connecting' && 'Connecting to transcription service...'}
                           {connectionStatus === 'connected' && 'Connected to transcription service'}
                           {connectionStatus === 'error' && 'Failed to connect to transcription service'}
                         </span>
-                      </div>}
+                      </div>
+                    )}
                   </form>
 
                   {/* Live Transcript Display */}
-                  {(isRecording || liveTranscript) && <div className="mt-6">
+                  {(isRecording || liveTranscript) && (
+                    <div className="mt-6">
                       <h3 className="text-white font-semibold mb-3">Live Transcript</h3>
                       <div className="bg-white/5 rounded-lg p-4 border border-white/10 min-h-[100px] max-h-[300px] overflow-y-auto">
                         <p className="text-slate-300 leading-relaxed">
                           {liveTranscript || (isRecording ? "Listening..." : "No transcript yet")}
                         </p>
                       </div>
-                    </div>}
+                    </div>
+                  )}
                 </CardContent>
-              </Card>}
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="upload" className="mt-8">
@@ -538,7 +632,13 @@ const JoinMeeting = () => {
                   <div className="space-y-2">
                     <Label htmlFor="audio-file" className="text-white">Audio File</Label>
                     <div className="border-2 border-dashed border-white/20 rounded-lg p-8 text-center hover:border-purple-400 transition-colors">
-                      <input id="audio-file" type="file" accept="audio/*" onChange={handleFileChange} className="hidden" />
+                      <input
+                        id="audio-file"
+                        type="file"
+                        accept="audio/*"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
                       <label htmlFor="audio-file" className="cursor-pointer flex flex-col items-center gap-4">
                         <Upload className="h-12 w-12 text-slate-400" />
                         <div>
@@ -553,11 +653,17 @@ const JoinMeeting = () => {
                     </div>
                   </div>
 
-                  <Button type="submit" disabled={loading || !selectedFile} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white">
-                    {loading ? 'Processing...' : <>
+                  <Button
+                    type="submit"
+                    disabled={loading || !selectedFile}
+                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+                  >
+                    {loading ? 'Processing...' : (
+                      <>
                         <Upload className="h-4 w-4 mr-2" />
                         Start Transcription
-                      </>}
+                      </>
+                    )}
                   </Button>
                 </form>
               </CardContent>
@@ -566,15 +672,17 @@ const JoinMeeting = () => {
         </Tabs>
 
         {/* Transcription Results */}
-        {(transcriptionResults.length > 0 || transcriptSegments.length > 0) && <Card className="mt-8 bg-white/10 backdrop-blur-md border-white/20">
+        {(transcriptionResults.length > 0 || transcriptSegments.length > 0) && (
+          <Card className="mt-8 bg-white/10 backdrop-blur-md border-white/20">
             <CardHeader>
               <CardTitle className="text-white">Transcription Results</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {transcriptSegments.length > 0 ?
-            // Show structured transcript segments
-            transcriptSegments.map((segment, index) => <div key={segment.id || index} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                {transcriptSegments.length > 0 ? (
+                  // Show structured transcript segments
+                  transcriptSegments.map((segment, index) => (
+                    <div key={segment.id || index} className="bg-white/5 rounded-lg p-4 border border-white/10">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-medium text-purple-400">
@@ -587,35 +695,59 @@ const JoinMeeting = () => {
                         </span>
                       </div>
                       <p className="text-slate-300 leading-relaxed">{segment.text}</p>
-                    </div>) :
-            // Show basic transcription results
-            transcriptionResults.map((text, index) => <div key={index} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                    </div>
+                  ))
+                ) : (
+                  // Show basic transcription results
+                  transcriptionResults.map((text, index) => (
+                    <div key={index} className="bg-white/5 rounded-lg p-4 border border-white/10">
                       <p className="text-slate-300 leading-relaxed">{text}</p>
-                    </div>)}
+                    </div>
+                  ))
+                )}
               </div>
               <div className="mt-4 flex gap-2">
-                <Button onClick={handleSaveTranscription} disabled={saving} className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white">
-                  {saving ? 'Saving...' : <>
+                <Button
+                  onClick={handleSaveTranscription}
+                  disabled={saving}
+                  className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white"
+                >
+                  {saving ? 'Saving...' : (
+                    <>
                       <Save className="h-4 w-4 mr-2" />
                       Save to Notes
-                    </>}
+                    </>
+                  )}
                 </Button>
-                <Button onClick={() => {
-              const transcriptText = transcriptSegments.length > 0 ? transcriptSegments.map(s => `[${s.timestamp}] ${s.speaker}: ${s.text}`).join('\n') : transcriptionResults.join(' ');
-              navigator.clipboard.writeText(transcriptText);
-            }} variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
+                <Button
+                  onClick={() => {
+                    const transcriptText = transcriptSegments.length > 0
+                      ? transcriptSegments.map(s => `[${s.timestamp}] ${s.speaker}: ${s.text}`).join('\n')
+                      : transcriptionResults.join(' ');
+                    navigator.clipboard.writeText(transcriptText);
+                  }}
+                  variant="outline"
+                  className="border-white/30 hover:bg-white/10 text-slate-950"
+                >
                   Copy All
                 </Button>
-                <Button onClick={() => {
-              setTranscriptionResults([]);
-              setTranscriptSegments([]);
-            }} variant="outline" className="border-white/30 hover:bg-white/10 text-slate-950">
+                <Button
+                  onClick={() => {
+                    setTranscriptionResults([]);
+                    setTranscriptSegments([]);
+                  }}
+                  variant="outline"
+                  className="border-white/30 hover:bg-white/10 text-slate-950"
+                >
                   Clear
                 </Button>
               </div>
             </CardContent>
-          </Card>}
+          </Card>
+        )}
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default JoinMeeting;
