@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import VirtualAudioSetup from '@/components/VirtualAudioSetup';
 import RealTimeTranscription from '@/components/RealTimeTranscription';
 import { VirtualAudioDevice } from '@/utils/VirtualAudioDriver';
+import AudioRecorder from '@/components/AudioRecorder';
 
 interface TranscriptSegment {
   id: string;
@@ -53,6 +54,9 @@ const JoinMeeting = () => {
   const [audioCaptureTitle, setAudioCaptureTitle] = useState('');
 
   const [microphonePermError, setMicrophonePermError] = useState<string | null>(null);
+
+  // New state for full speaker-labeled transcript segments via AudioRecorder
+  const [speakerSegments, setSpeakerSegments] = useState<any[]>([]);
 
   useEffect(() => {
     return () => {
@@ -589,6 +593,20 @@ const JoinMeeting = () => {
                       )}
                     </div>
                   </form>
+                  {meetingMode === "audio" && (
+                    <AudioRecorder
+                      onTranscription={(chunkText) => {
+                        setLiveTranscript(prev => prev + (chunkText ? "\n" + chunkText : ""));
+                      }}
+                      onFinalized={(fullText, segmentsArr) => {
+                        setLiveTranscript(fullText);
+                        setSpeakerSegments(segmentsArr);
+                        setTranscriptionResults([fullText]);
+                      }}
+                      isRecording={isRecording}
+                      setIsRecording={setIsRecording}
+                    />
+                  )}
                   {/* Show microphone permission error if present */}
                   {microphonePermError && (
                     <div className="mt-4 bg-red-900/40 border border-red-400 text-white p-3 rounded flex flex-col sm:flex-row items-center gap-3">
@@ -703,20 +721,19 @@ const JoinMeeting = () => {
         </Tabs>
 
         {/* Transcription Results */}
-        {(transcriptionResults.length > 0 || transcriptSegments.length > 0) && (
+        {(transcriptionResults.length > 0 || transcriptSegments.length > 0 || speakerSegments.length > 0) && (
           <Card className="mt-7 md:mt-8 bg-white/10 backdrop-blur-md border-white/20">
             <CardHeader>
               <CardTitle className="text-white text-lg md:text-xl">Transcription Results</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3 md:space-y-4">
-                {transcriptSegments.length > 0 ? (
-                  transcriptSegments.map((segment, index) => (
-                    <div key={segment.id || index} className="bg-white/5 rounded-lg p-3 md:p-4 border border-white/10 overflow-x-auto">
+                {speakerSegments.length > 0 ? (
+                  speakerSegments.map((segment, index) => (
+                    <div key={index} className="bg-white/5 rounded-lg p-3 md:p-4 border border-white/10 overflow-x-auto">
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-1 md:mb-2">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-medium text-purple-400">{segment.speaker}</span>
-                          <span className="text-xs text-slate-400">{segment.timestamp}</span>
                         </div>
                         <span className="text-xs text-green-400 mt-1 sm:mt-0">
                           {Math.round(segment.confidence * 100)}%
@@ -762,6 +779,7 @@ const JoinMeeting = () => {
                   onClick={() => {
                     setTranscriptionResults([]);
                     setTranscriptSegments([]);
+                    setSpeakerSegments([]);
                   }}
                   variant="outline"
                   className="border-white/30 hover:bg-white/10 text-slate-950 px-3 py-2"
@@ -778,6 +796,5 @@ const JoinMeeting = () => {
 };
 
 export default JoinMeeting;
-
 // This file is now very long (>780 lines).
 // Consider refactoring into smaller hooks/components for maintainability!
