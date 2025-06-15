@@ -34,15 +34,16 @@ function floatTo16BitPCM(float32Array: Float32Array): Uint8Array {
     buf[i * 2] = val & 0xff;
     buf[i * 2 + 1] = (val >> 8) & 0xff;
   }
+  // Debug: Log first 12 PCM samples
+  console.log('[DEBUG] floatTo16BitPCM: first 12 int16 samples =', Array.from(buf.slice(0,24)));
   return buf;
 }
 
-const SAMPLERATE_TARGET = 24000; // Deepgram expects 24k
-// Resample from any (usually 44.1k, 48k) to 24k mono
+const SAMPLERATE_TARGET = 24000;
+// Resample from any to 24k mono, logs input vs output buffer
 async function resampleTo24KHzMono(audioBuffer: AudioBuffer): Promise<Float32Array> {
   const n = Math.round(audioBuffer.duration * SAMPLERATE_TARGET);
   const ctx = new OfflineAudioContext(1, n, SAMPLERATE_TARGET);
-  // Downmix all channels into mono
   const src = ctx.createBufferSource();
   let monoBuf = ctx.createBuffer(1, audioBuffer.length, audioBuffer.sampleRate);
   const inputL = audioBuffer.getChannelData(0);
@@ -55,8 +56,17 @@ async function resampleTo24KHzMono(audioBuffer: AudioBuffer): Promise<Float32Arr
   src.buffer = monoBuf;
   src.connect(ctx.destination);
   src.start();
+
+  // Debug: Log first 12 samples pre-resample
+  console.log("[DEBUG] resampleTo24KHzMono input (length, samplerate, first 12):", audioBuffer.length, audioBuffer.sampleRate, Array.from(output.slice(0, 12)));
+
   const rendered = await ctx.startRendering();
-  return rendered.getChannelData(0).slice();
+
+  // Debug: Log post-resample
+  const channel = rendered.getChannelData(0);
+  console.log("[DEBUG] resampleTo24KHzMono output (length, samplerate, first 12):", rendered.length, rendered.sampleRate, Array.from(channel.slice(0, 12)));
+
+  return channel.slice();
 }
 
 const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
@@ -147,9 +157,7 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
       processor.onaudioprocess = (event) => {
         const inputBuffer = event.inputBuffer;
         // Downmix and collect every callback (multiple times/second)
-        const ch = inputBuffer.numberOfChannels > 1
-          ? inputBuffer
-          : undefined;
+        const ch = inputBuffer.numberOfChannels > 1 ? inputBuffer : undefined;
         const frame = ch
           ? new Float32Array(inputBuffer.length)
           : inputBuffer.getChannelData(0).slice();
@@ -163,12 +171,19 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
           }
         }
         chunkBuffersRef.current.push(frame);
+
+        // Debug live waveform stats for the latest frame
+        if (frame.length > 0) {
+          const min = Math.min(...frame);
+          const max = Math.max(...frame);
+          const avg = frame.reduce((a,b)=>a+b,0)/frame.length;
+          console.log(`[AUDIO_DEBUG] Added audio frame: len=${frame.length} min=${min.toFixed(2)} max=${max.toFixed(2)} avg=${avg.toFixed(2)}`);
+        }
       };
 
       src.connect(processor);
       processor.connect(audioCtx.destination);
 
-      // Every 3 seconds, flush, encode, POST chunk, repeat
       pollingTimeoutRef.current = setInterval(postChunk, 3000);
 
       setIsUserConnecting(false);
@@ -189,7 +204,7 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
   };
 
   const postChunk = async () => {
-    if (!chunkBuffersRef.current.length) return; // Don't spam empty
+    if (!chunkBuffersRef.current.length) return;
     setIsUploading(true);
 
     try {
@@ -201,7 +216,15 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
         samples.set(arr, pos);
         pos += arr.length;
       }
-      chunkBuffersRef.current = []; // Clear current
+      chunkBuffersRef.current = [];
+
+      // Log: print min/max/avg and first 20 of the combined sample buffer
+      if (samples.length > 0) {
+        const min = Math.min(...samples);
+        const max = Math.max(...samples);
+        const avg = samples.reduce((a,b)=>a+b,0)/samples.length;
+        console.log(`[AUDIO_DEBUG] [CHUNK] Combined samples: length=${samples.length} min=${min.toFixed(2)} max=${max.toFixed(2)} avg=${avg.toFixed(2)} first20=`, Array.from(samples.slice(0,20)));
+      }
 
       // Resample to 24k mono
       const audioCtx = audioCtxRef.current;
@@ -212,17 +235,33 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
       inputBuffer.copyToChannel(samples, 0);
       const mono24kFloat32 = await resampleTo24KHzMono(inputBuffer);
 
+      // Log: resampled data min/max, length
+      if (mono24kFloat32.length > 0) {
+        const min = Math.min(...mono24kFloat32);
+        const max = Math.max(...mono24kFloat32);
+        const avg = mono24kFloat32.reduce((a,b)=>a+b,0)/mono24kFloat32.length;
+        console.log(`[AUDIO_DEBUG] [CHUNK] Resampled (24kHz, mono): length=${mono24kFloat32.length} min=${min.toFixed(2)} max=${max.toFixed(2)} avg=${avg.toFixed(2)} first20=`, Array.from(mono24kFloat32.slice(0,20)));
+      }
+
       // PCM16 encoding
       const pcmBuf = floatTo16BitPCM(mono24kFloat32);
+
+      // Log: show PCM buffer length, first 32 bytes
+      console.log(`[AUDIO_DEBUG] [CHUNK] PCM16 buffer (bytes): length=${pcmBuf.length} first32=`, Array.from(pcmBuf.slice(0,32)));
+
       // package into blob as audio/raw
       const blob = new Blob([pcmBuf], { type: 'audio/raw' });
 
       // Compose multipart form
       const formData = new FormData();
       formData.append("audio", blob, "audio.pcm");
+      // ALWAYS send "virtualaudio" -- do not send "microphone"
       formData.append("mode", "virtualaudio");
       if (sessionId) formData.append("sessionId", sessionId);
       formData.append("deviceLabel", "virtualaudio");
+
+      // DEBUG: Show upload
+      console.log("[AUDIO_DEBUG] [POST] Uploading chunk: bytes=", pcmBuf.length, "mode=virtualaudio", "sessionId", sessionId);
 
       // POST to edge function
       const response = await fetch("https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio-realtime", {
@@ -235,7 +274,20 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
 
       const result = await response.json();
       if (!response.ok || result.error) {
-        throw new Error(result.error || "Unknown error from backend");
+        console.error("[TRANSCRIBE ERROR] Post failed, error=", result.error, "resp_status", response.status);
+        // Detect known Deepgram "unsupported/corrupt" error and help user
+        if (result.error && result.error.includes("corrupt or unsupported data")) {
+          setLastError("Deepgram rejected PCM audio as corrupt or unsupported. Try a different virtual audio source, restart browser, or play a sample audio using the system default playback device. If using headphones, unplug and select a virtual cable as your input.");
+          toast({
+            title: "Audio Format Error",
+            description: "Deepgram returned: corrupt or unsupported data. Try a different source or a demo virtual device with known good audio.",
+            variant: "destructive",
+          });
+        } else {
+          throw new Error(result.error || "Unknown error from backend");
+        }
+        setIsUploading(false);
+        return;
       }
       // Parse new transcript, sessionId, speakerSegments
       setSessionId(result.sessionId);
@@ -248,13 +300,11 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
           confidence: segment.confidence ?? 1
         }));
         setTranscriptSegments((prev) => {
-          // append, or just set to last chunk's segments
           const merged = [...prev, ...newSegments];
           onTranscriptUpdate(merged);
           return merged;
         });
       } else if (result.transcript) {
-        // Fallback: only transcript string
         setTranscriptSegments((prev) => {
           const newSeg: TranscriptSegment = {
             id: Date.now().toString() + Math.random(),
@@ -273,7 +323,7 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
       setLastError("Error uploading audio: " + err?.message);
       toast({
         title: "Transcription Error",
-        description: err?.message || "Failed to get transcript back from backend",
+        description: err?.message || "Failed to get transcript back from backend.",
         variant: "destructive",
       });
       setIsUploading(false);
