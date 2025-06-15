@@ -297,7 +297,7 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
       setLastUploadDebug(debugPayload);
 
       // POST: submit chunk
-      const response = await fetch("https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio-realtime", {
+      const response = await fetch("https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio", {
         method: "POST",
         headers: {
           'Authorization': `Bearer ${window.sessionStorage.getItem('supabase.auth.token') || ''}`
