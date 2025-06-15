@@ -162,8 +162,9 @@ const MassDeleteDialog: React.FC<MassDeleteDialogProps> = ({
           </Button>
           <Button
             onClick={() => setIsOpen(false)}
+            // Custom style for red text and white bg
+            className="flex-1 py-2 text-sm border border-red-500 text-red-600 bg-white hover:bg-red-50 hover:text-red-700"
             variant="outline"
-            className="border-gray-700 hover:bg-gray-900 text-gray-300 hover:text-white flex-1 py-2 text-sm"
           >
             Cancel
           </Button>
