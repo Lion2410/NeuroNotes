@@ -70,6 +70,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
   // Start logic
   const startRecording = useCallback(async () => {
+    console.log("Starting recording setup...");
     setTranscript('');
     setSegments([]);
     setProcessing(false);
@@ -78,7 +79,9 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     audioChunksRef.current = [];
 
     try {
+      console.log("Requesting media stream...");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log("Media stream acquired:", stream);
       streamRef.current = stream;
 
       const audioContext = new AudioContext();
@@ -94,8 +97,10 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       };
       visualize();
 
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+      console.log("Initializing MediaRecorder...");
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm' });
       mediaRecorderRef.current = mediaRecorder;
+      console.log("MediaRecorder initialized.");
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -108,6 +113,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         if (audioChunksRef.current.length > 0) handleChunk(new Blob(audioChunksRef.current));
       };
 
+      console.log("Starting MediaRecorder...");
       mediaRecorder.start(10000);
 
       setRecordingStart(new Date());
@@ -116,8 +122,10 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       elapsedTimerRef.current = setInterval(() => setElapsedSeconds(prev => prev + 1), 1000);
 
       setIsRecording(true);
+      console.log("Recording started successfully.");
       toast({ title: "Recording Started", description: "Speak clearly for best transcription results." });
     } catch (error) {
+      console.error("Recording error:", error.message, error.name);
       setIsRecording(false);
       setProcessing(false);
       toast({ title: "Recording Error", description: "Microphone access failed.", variant: "destructive" });
@@ -175,6 +183,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   useEffect(() => {
     if (isRecording) {
       startRecording();
+      console.log("Recording toggled to start.");
       return () => {};
     } else {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
