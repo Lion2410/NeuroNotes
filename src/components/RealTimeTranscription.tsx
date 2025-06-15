@@ -1,6 +1,5 @@
 
-// Enhanced RealTimeTranscription with improved retry logic, connection state, user controls, and logging
-
+// RealTimeTranscription rewritten for polling HTTP + PCM16 upload (no websockets).
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,8 +23,41 @@ interface RealTimeTranscriptionProps {
   onToggle: () => void;
 }
 
-const MAX_RETRIES = 6; // Try 6 times (~191 sec w/ exponential backoff)
-const INITIAL_BACKOFF = 3000; // 3s
+// Inline utility: convert Float32 to PCM16 mono little-endian
+function floatTo16BitPCM(float32Array: Float32Array): Uint8Array {
+  const len = float32Array.length;
+  const buf = new Uint8Array(len * 2);
+  for (let i = 0; i < len; i++) {
+    let s = Math.max(-1, Math.min(1, float32Array[i]));
+    s = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    const val = Math.round(s);
+    buf[i * 2] = val & 0xff;
+    buf[i * 2 + 1] = (val >> 8) & 0xff;
+  }
+  return buf;
+}
+
+const SAMPLERATE_TARGET = 24000; // Deepgram expects 24k
+// Resample from any (usually 44.1k, 48k) to 24k mono
+async function resampleTo24KHzMono(audioBuffer: AudioBuffer): Promise<Float32Array> {
+  const n = Math.round(audioBuffer.duration * SAMPLERATE_TARGET);
+  const ctx = new OfflineAudioContext(1, n, SAMPLERATE_TARGET);
+  // Downmix all channels into mono
+  const src = ctx.createBufferSource();
+  let monoBuf = ctx.createBuffer(1, audioBuffer.length, audioBuffer.sampleRate);
+  const inputL = audioBuffer.getChannelData(0);
+  let inputR;
+  if (audioBuffer.numberOfChannels > 1) inputR = audioBuffer.getChannelData(1);
+  const output = monoBuf.getChannelData(0);
+  for (let i = 0; i < audioBuffer.length; ++i) {
+    output[i] = (inputL[i] + (inputR ? inputR[i] : 0)) / (inputR ? 2 : 1);
+  }
+  src.buffer = monoBuf;
+  src.connect(ctx.destination);
+  src.start();
+  const rendered = await ctx.startRendering();
+  return rendered.getChannelData(0).slice();
+}
 
 const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
   audioStream,
@@ -34,36 +66,23 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
   onToggle
 }) => {
   const [transcriptSegments, setTranscriptSegments] = useState<TranscriptSegment[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [currentSpeaker, setCurrentSpeaker] = useState<string>('Unknown');
   const [sessionDuration, setSessionDuration] = useState(0);
-
-  const [retryCount, setRetryCount] = useState(0);
   const [lastError, setLastError] = useState<string | null>(null);
-  const [isRetrying, setIsRetrying] = useState(false);
   const [isUserConnecting, setIsUserConnecting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
-  const wsRef = useRef<WebSocket | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const sessionStartRef = useRef<Date | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const mediaStreamSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const chunkBuffersRef = useRef<Float32Array[]>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const connectionLock = useRef(false);
+  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionStartRef = useRef<Date | null>(null);
 
-  const { toast, dismiss } = useToast();
+  const { toast } = useToast();
 
-  // Always use the correct URL for websocket
-  const supabaseWSURL = 'wss://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio-realtime';
-
-  // Reset internal state on visibility change or modal open/close
-  useEffect(() => {
-    if (!isActive) {
-      stopTranscription({ resetErr: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, audioStream]);
-
-  // Session timer
+  // Timer
   useEffect(() => {
     if (isActive) {
       sessionStartRef.current = new Date();
@@ -81,231 +100,211 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
     };
   }, [isActive]);
 
-  // Retry connection if needed
+  // Start/stop audio capture+push on isActive
   useEffect(() => {
-    if (lastError && isActive && retryCount < MAX_RETRIES && !isConnected && !isUserConnecting) {
-      setIsRetrying(true);
-      const backoffTime = INITIAL_BACKOFF * Math.pow(2, retryCount);
-      retryTimeoutRef.current = setTimeout(() => {
-        if (isActive && retryCount < MAX_RETRIES) {
-          startTranscription();
-        }
-      }, backoffTime);
-      // Toast retry message ONLY on the first retry
-      if (retryCount === 0) {
-        toast({
-          title: "Connection lost",
-          description: `Will retry in ${backoffTime/1000}s...`,
-          variant: "destructive"
-        });
-      }
-    } else if (retryCount >= MAX_RETRIES && isActive && !isConnected) {
-      setIsRetrying(false);
-      toast({
-        title: "Transcription unavailable",
-        description: "Max reconnection attempts reached. Please check configuration and try again.",
-        variant: "destructive"
-      });
-    }
-    return () => {
-      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastError, retryCount, isActive, isConnected, isUserConnecting]);
-
-  const startTranscription = async () => {
-    if (connectionLock.current) return;
-    connectionLock.current = true;
-    setIsUserConnecting(true);
-    setIsRetrying(false);
-    setLastError(null);
-
-    if (!audioStream) {
-      toast({
-        title: "No Audio Stream",
-        description: "Please set up virtual audio first",
-        variant: "destructive"
-      });
+    if (!isActive) {
+      cleanupRecording();
+      setSessionId(null);
+      setIsUploading(false);
       setIsUserConnecting(false);
-      connectionLock.current = false;
-      setLastError("No audio stream.");
+      setLastError(null);
       return;
     }
+    if (!audioStream) {
+      setLastError("No virtual audio input selected!");
+      toast({
+        title: "No Audio",
+        description: "Please select a virtual audio device first.",
+        variant: "destructive",
+      });
+      onToggle();
+      return;
+    }
+    setIsUserConnecting(true);
+
+    startRecording();
+    // Cleanup when toggled off
+    return () => {
+      cleanupRecording();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive, audioStream]);
+
+  // Polling upload chunk audio every 3 seconds
+  const startRecording = () => {
+    if (!audioStream) return;
+
     try {
-      wsRef.current = new WebSocket(supabaseWSURL);
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioCtxRef.current = audioCtx;
+      const src = audioCtx.createMediaStreamSource(audioStream);
+      mediaStreamSourceRef.current = src;
 
-      wsRef.current.onopen = () => {
-        setIsConnected(true);
-        setIsRetrying(false);
-        setRetryCount(0);
-        setLastError(null);
-        toast({
-          title: "Transcription Started",
-          description: "Real-time audio transcription is now active",
-        });
-        console.log('Connected to real-time transcription service');
-      };
+      const processor = audioCtx.createScriptProcessor(4096, src.channelCount, 1);
+      processorRef.current = processor;
+      chunkBuffersRef.current = [];
 
-      wsRef.current.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log('Received transcription data:', data);
-
-          if (data.type === 'transcript' && data.transcript) {
-            const newSegment: TranscriptSegment = {
-              id: Date.now().toString() + Math.random(),
-              timestamp: new Date().toLocaleTimeString(),
-              speaker: detectSpeaker(data.transcript),
-              text: data.transcript,
-              confidence: data.confidence || 0
-            };
-
-            setTranscriptSegments(prev => {
-              const updated = [...prev, newSegment];
-              onTranscriptUpdate(updated);
-              return updated;
-            });
-          }
-          if (data.error) {
-            toast({
-              title: "Transcription Error",
-              description: data.error,
-              variant: "destructive"
-            });
-            setLastError(data.error);
-            setIsConnected(false);
-            setRetryCount((prev) => prev + 1);
-            wsRef.current?.close();
-            console.error("Transcription WS error:", data.error);
-          }
-        } catch (error) {
-          setLastError('Error parsing message');
-          console.error('Parse error:', error);
-          toast({
-            title: "Message Parse Error",
-            description: (error as Error)?.message || "Unknown error",
-            variant: "destructive"
-          });
-        }
-      };
-
-      wsRef.current.onerror = (error: Event) => {
-        setIsConnected(false);
-        setRetryCount((prev) => prev + 1);
-        setLastError('WebSocket error');
-        toast({
-          title: "Connection Error",
-          description: "Failed to connect to transcription service.",
-          variant: "destructive"
-        });
-        wsRef.current?.close();
-        console.error('WebSocket error:', error);
-      };
-
-      wsRef.current.onclose = (event) => {
-        setIsConnected(false);
-        setLastError(`[${event.code}] WebSocket closed`);
-        if (isActive && retryCount < MAX_RETRIES) {
-          setRetryCount((prev) => prev + 1);
-        }
-        console.log('WebSocket connection closed', event);
-      };
-
-      // Set up MediaRecorder for audio capture
-      if (audioStream) {
-        mediaRecorderRef.current = new MediaRecorder(audioStream, {
-          mimeType: 'audio/webm;codecs=opus'
-        });
-
-        mediaRecorderRef.current.ondataavailable = async (event) => {
-          if (event.data.size > 0 && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-            try {
-              const reader = new FileReader();
-              reader.onloadend = () => {
-                const base64 = (reader.result as string).split(',')[1];
-                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                  wsRef.current.send(JSON.stringify({
-                    type: 'audio',
-                    data: base64
-                  }));
-                }
-              };
-              reader.readAsDataURL(event.data);
-            } catch (error) {
-              setLastError('Audio processing error');
-              setRetryCount((prev) => prev + 1);
-              console.error('Error processing audio data:', error);
+      processor.onaudioprocess = (event) => {
+        const inputBuffer = event.inputBuffer;
+        // Downmix and collect every callback (multiple times/second)
+        const ch = inputBuffer.numberOfChannels > 1
+          ? inputBuffer
+          : undefined;
+        const frame = ch
+          ? new Float32Array(inputBuffer.length)
+          : inputBuffer.getChannelData(0).slice();
+        if (ch) {
+          for (let i = 0; i < inputBuffer.length; i++) {
+            let sum = 0;
+            for (let c = 0; c < inputBuffer.numberOfChannels; c++) {
+              sum += inputBuffer.getChannelData(c)[i];
             }
+            frame[i] = sum / inputBuffer.numberOfChannels;
           }
-        };
-        try {
-          mediaRecorderRef.current.start(1000); // Send data every second
-        } catch (err) {
-          setLastError('MediaRecorder error');
-          setRetryCount((prev) => prev + 1);
-          toast({
-            title: "Audio Error",
-            description: "Microphone or stream error. Please check permissions.",
-            variant: "destructive"
-          });
-          // Don't proceed further if can't start recording
-          return;
         }
+        chunkBuffersRef.current.push(frame);
+      };
+
+      src.connect(processor);
+      processor.connect(audioCtx.destination);
+
+      // Every 3 seconds, flush, encode, POST chunk, repeat
+      pollingTimeoutRef.current = setInterval(postChunk, 3000);
+
+      setIsUserConnecting(false);
+      toast({
+        title: 'Transcription Started',
+        description: 'Capturing meeting audio for transcription...',
+      });
+    } catch (err: any) {
+      setLastError("Could not start audio capture: " + err?.message);
+      setIsUserConnecting(false);
+      toast({
+        title: 'Capture Start Failed',
+        description: err?.message || "Failed to start capture",
+        variant: "destructive",
+      });
+      onToggle();
+    }
+  };
+
+  const postChunk = async () => {
+    if (!chunkBuffersRef.current.length) return; // Don't spam empty
+    setIsUploading(true);
+
+    try {
+      // concat all samples for current chunk
+      const totalLen = chunkBuffersRef.current.reduce((a, b) => a + b.length, 0);
+      const samples = new Float32Array(totalLen);
+      let pos = 0;
+      for (const arr of chunkBuffersRef.current) {
+        samples.set(arr, pos);
+        pos += arr.length;
       }
-    } catch (error: any) {
-      setLastError(error?.message || 'Unknown error starting transcription');
-      setRetryCount((prev) => prev + 1);
-      setIsConnected(false);
+      chunkBuffersRef.current = []; // Clear current
+
+      // Resample to 24k mono
+      const audioCtx = audioCtxRef.current;
+      if (!audioCtx) throw new Error("No audio context available");
+      const inputBuffer = audioCtx.createBuffer(
+        1, samples.length, audioCtx.sampleRate
+      );
+      inputBuffer.copyToChannel(samples, 0);
+      const mono24kFloat32 = await resampleTo24KHzMono(inputBuffer);
+
+      // PCM16 encoding
+      const pcmBuf = floatTo16BitPCM(mono24kFloat32);
+      // package into blob as audio/raw
+      const blob = new Blob([pcmBuf], { type: 'audio/raw' });
+
+      // Compose multipart form
+      const formData = new FormData();
+      formData.append("audio", blob, "audio.pcm");
+      formData.append("mode", "virtualaudio");
+      if (sessionId) formData.append("sessionId", sessionId);
+      formData.append("deviceLabel", "virtualaudio");
+
+      // POST to edge function
+      const response = await fetch("https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio-realtime", {
+        method: "POST",
+        headers: {
+          'Authorization': `Bearer ${window.sessionStorage.getItem('supabase.auth.token') || ''}`
+        },
+        body: formData
+      });
+
+      const result = await response.json();
+      if (!response.ok || result.error) {
+        throw new Error(result.error || "Unknown error from backend");
+      }
+      // Parse new transcript, sessionId, speakerSegments
+      setSessionId(result.sessionId);
+      if (result.speakerSegments && Array.isArray(result.speakerSegments)) {
+        const newSegments: TranscriptSegment[] = result.speakerSegments.map((segment: any, i: number) => ({
+          id: Date.now().toString() + Math.random() + i,
+          timestamp: new Date().toLocaleTimeString(),
+          speaker: segment.speaker,
+          text: segment.text,
+          confidence: segment.confidence ?? 1
+        }));
+        setTranscriptSegments((prev) => {
+          // append, or just set to last chunk's segments
+          const merged = [...prev, ...newSegments];
+          onTranscriptUpdate(merged);
+          return merged;
+        });
+      } else if (result.transcript) {
+        // Fallback: only transcript string
+        setTranscriptSegments((prev) => {
+          const newSeg: TranscriptSegment = {
+            id: Date.now().toString() + Math.random(),
+            timestamp: new Date().toLocaleTimeString(),
+            speaker: "Speaker",
+            text: result.transcript,
+            confidence: 1
+          };
+          const merged = [...prev, newSeg];
+          onTranscriptUpdate(merged);
+          return merged;
+        });
+      }
+      setIsUploading(false);
+    } catch (err: any) {
+      setLastError("Error uploading audio: " + err?.message);
       toast({
         title: "Transcription Error",
-        description: "Failed to start real-time transcription",
-        variant: "destructive"
+        description: err?.message || "Failed to get transcript back from backend",
+        variant: "destructive",
       });
-      console.error('Error starting transcription:', error);
-    } finally {
-      setIsUserConnecting(false);
-      connectionLock.current = false;
+      setIsUploading(false);
     }
   };
 
-  // Manual reconnect handler
-  const handleManualReconnect = () => {
-    // Clear error, abort any retry timer, and reset retries
-    if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
-    setRetryCount(0);
+  const cleanupRecording = () => {
+    // Disconnect proc/audio
+    if (pollingTimeoutRef.current) clearInterval(pollingTimeoutRef.current);
+    pollingTimeoutRef.current = null;
+    chunkBuffersRef.current = [];
+    try {
+      processorRef.current?.disconnect();
+      mediaStreamSourceRef.current?.disconnect();
+      audioCtxRef.current?.close();
+    } catch { }
+    processorRef.current = null;
+    audioCtxRef.current = null;
+    mediaStreamSourceRef.current = null;
+  };
+
+  const handleManualRetry = () => {
     setLastError(null);
-    startTranscription();
-  };
-
-  // Disconnect/cleanup everything and abort retries when toggled off
-  const stopTranscription = ({ resetErr = false }: { resetErr?: boolean } = {}) => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
-    setIsConnected(false);
     setIsUserConnecting(false);
-    setIsRetrying(false);
-    if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
-    if (resetErr) {
-      setRetryCount(0);
-      setLastError(null);
-    }
-  };
-
-  const detectSpeaker = (text: string): string => {
-    // Simple speaker detection based on text patterns
-    const speakers = ['Speaker 1', 'Speaker 2', 'Speaker 3'];
-    return speakers[Math.floor(Math.random() * speakers.length)];
+    startRecording();
   };
 
   const formatDuration = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-
     if (hours > 0) {
       return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
@@ -337,23 +336,21 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
           </CardTitle>
           <div className="flex items-center gap-2">
             <Badge variant={
-              isConnected ? "secondary"
-              : isRetrying ? "destructive"
-              : lastError ? "destructive"
-              : "secondary"
+              isActive
+                ? (isUploading ? 'secondary' : 'secondary')
+                : lastError ? "destructive"
+                  : "secondary"
             }>
-              {isConnected
-                ? "Connected"
-                : isRetrying
-                  ? `Reconnecting (${retryCount}/${MAX_RETRIES})`
-                  : lastError
-                    ? "Connection Error"
-                    : "Disconnected"
+              {
+                isUserConnecting ? "Connecting..."
+                  : isActive ? (isUploading ? "Uploading..." : "Active")
+                    : lastError ? "Error"
+                      : "Ready"
               }
             </Badge>
             {lastError && (
               <Button
-                onClick={handleManualReconnect}
+                onClick={handleManualRetry}
                 variant="secondary"
                 size="icon"
                 className="bg-yellow-600 hover:bg-yellow-700"
@@ -412,7 +409,7 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
           <div className="space-y-3">
             {transcriptSegments.length === 0 ? (
               <div className="text-center text-slate-400 py-8">
-                {isActive ? (isUserConnecting ? "Connecting…" : "Listening for audio...") : "Start transcription to see live results"}
+                {isUserConnecting ? "Connecting…" : isActive ? "Listening for audio..." : "Start transcription to see live results"}
               </div>
             ) : (
               transcriptSegments.map(segment => (
@@ -464,3 +461,4 @@ export default RealTimeTranscription;
 
 // This file is now very long (>350 lines).
 // Consider refactoring into smaller hooks/components for maintainability!
+
