@@ -98,7 +98,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       visualize();
 
       console.log("Initializing MediaRecorder...");
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/wav') ? 'audio/wav' : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '') });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/mp3') ? 'audio/mp3' : '' });
       mediaRecorderRef.current = mediaRecorder;
       console.log("MediaRecorder initialized.");
 
@@ -134,10 +134,11 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
   const handleChunk = async (chunk: Blob) => {
     console.log("Chunk received, size:", chunk.size, "type:", chunk.type);
+    console.log("Sending chunk to Supabase, size:", chunk.size, "type:", chunk.type);
     setProcessing(true);
 
     const formData = new FormData();
-    formData.append('audio', chunk, 'audio.wav'); // Updated to match WAV
+    formData.append('audio', chunk, 'audio.mp3');
 
     let accessToken = '';
     if (session && session.access_token) accessToken = session.access_token;
