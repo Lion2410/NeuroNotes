@@ -399,13 +399,6 @@ const JoinMeeting = () => {
     }
   };
 
-  // Add console for mode switch
-  const handleMeetingModeChange = (mode: 'bot' | 'virtual') => {
-    setMeetingMode(mode);
-    console.log(`[JoinMeeting] Meeting mode switched to: ${mode}`);
-    // Optionally, you can reset relevant state here if needed.
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       {/* Header */}
@@ -454,47 +447,31 @@ const JoinMeeting = () => {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Button
-                    type="button"
-                    onClick={() => handleMeetingModeChange('bot')}
-                    aria-pressed={meetingMode === 'bot'}
-                    variant="outline"
-                    className={
-                      `h-20 p-4 relative flex flex-col items-center space-y-1 transition-all duration-200
-                      ${meetingMode === 'bot'
-                        ? 'bg-gradient-to-r from-purple-700 to-pink-700 text-white ring-2 ring-purple-400/80'
-                        : 'border-white/30 hover:bg-white/10 text-white opacity-70'}
-                      `
-                    }
-                    tabIndex={0}
+                    onClick={() => setMeetingMode('bot')}
+                    variant={meetingMode === 'bot' ? 'default' : 'outline'}
+                    className={`h-20 p-4 ${meetingMode === 'bot' 
+                      ? 'bg-purple-600 hover:bg-purple-700' 
+                      : 'border-white/30 hover:bg-white/10'} text-white`}
                   >
-                    {meetingMode === 'bot' && (
-                      <span className="absolute top-2 right-2 rounded-full bg-purple-500 text-xs text-white px-2 py-0.5 shadow">Active</span>
-                    )}
-                    <ExternalLink className="h-6 w-6 mx-auto mb-2" />
-                    <div className="font-medium">Meeting Bot</div>
-                    <div className="text-sm opacity-75">Automatically join meetings</div>
+                    <div className="text-center">
+                      <ExternalLink className="h-6 w-6 mx-auto mb-2" />
+                      <div className="font-medium">Meeting Bot</div>
+                      <div className="text-sm opacity-75">Automatically join meetings</div>
+                    </div>
                   </Button>
                   
                   <Button
-                    type="button"
-                    onClick={() => handleMeetingModeChange('virtual')}
-                    aria-pressed={meetingMode === 'virtual'}
-                    variant="outline"
-                    className={
-                      `h-20 p-4 relative flex flex-col items-center space-y-1 transition-all duration-200
-                      ${meetingMode === 'virtual'
-                        ? 'bg-gradient-to-r from-purple-700 to-pink-700 text-white ring-2 ring-purple-400/80'
-                        : 'border-white/30 hover:bg-white/10 text-white opacity-70'}
-                      `
-                    }
-                    tabIndex={0}
+                    onClick={() => setMeetingMode('virtual')}
+                    variant={meetingMode === 'virtual' ? 'default' : 'outline'}
+                    className={`h-20 p-4 ${meetingMode === 'virtual' 
+                      ? 'bg-purple-600 hover:bg-purple-700' 
+                      : 'border-white/30 hover:bg-white/10'} text-white`}
                   >
-                    {meetingMode === 'virtual' && (
-                      <span className="absolute top-2 right-2 rounded-full bg-purple-500 text-xs text-white px-2 py-0.5 shadow">Active</span>
-                    )}
-                    <Headphones className="h-6 w-6 mx-auto mb-2" />
-                    <div className="font-medium">Virtual Audio</div>
-                    <div className="text-sm opacity-75">Capture system audio</div>
+                    <div className="text-center">
+                      <Headphones className="h-6 w-6 mx-auto mb-2" />
+                      <div className="font-medium">Virtual Audio</div>
+                      <div className="text-sm opacity-75">Capture system audio</div>
+                    </div>
                   </Button>
                 </div>
               </CardContent>
@@ -560,7 +537,6 @@ const JoinMeeting = () => {
                         onChange={(e) => setMeetingUrl(e.target.value)}
                         className="bg-white/10 border-white/20 text-white placeholder:text-slate-400"
                         required
-                        disabled={loading}
                       />
                       <p className="text-sm text-slate-400">
                         Supports Google Meet, Zoom, Microsoft Teams, and other popular platforms
@@ -591,7 +567,6 @@ const JoinMeeting = () => {
                           type="button"
                           onClick={startRealTimeTranscription}
                           className="bg-green-600 hover:bg-green-700"
-                          disabled={loading}
                         >
                           <Mic className="h-4 w-4 mr-2" />
                           Start Recording
