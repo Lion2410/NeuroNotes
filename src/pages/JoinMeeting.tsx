@@ -468,27 +468,27 @@ const JoinMeeting = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       {/* Header */}
-      <header className="px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-4">
+      <header className="px-4 md:px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+          <div className="flex items-center space-x-2 sm:space-x-4">
             <Link to="/notes" className="text-white hover:text-purple-400 transition-colors">
-              <ArrowLeft className="h-6 w-6" />
+              <ArrowLeft className="h-5 w-5 md:h-6 md:w-6" />
             </Link>
             <div className="flex items-center space-x-2">
-              <img src="/lovable-uploads/2d11ec38-9fc4-4af5-9224-4b5b20a91803.png" alt="NeuroNotes" className="h-12 w-auto" />
-              <span className="text-2xl font-bold text-white">NeuroNotes</span>
+              <img src="/lovable-uploads/2d11ec38-9fc4-4af5-9224-4b5b20a91803.png" alt="NeuroNotes" className="h-9 w-auto sm:h-12" />
+              <span className="text-lg md:text-2xl font-bold text-white">NeuroNotes</span>
             </div>
           </div>
-          <div className="flex items-center space-x-4">
-            <span className="text-white">Welcome, {user?.email}</span>
+          <div className="flex items-center space-x-2 sm:space-x-4 mt-2 sm:mt-0">
+            <span className="text-white text-sm md:text-base truncate max-w-[160px] sm:max-w-xs">{user?.email}</span>
           </div>
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-6 py-12">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-4">Start Transcription</h1>
-          <p className="text-xl text-slate-300">Capture audio live (microphone or virtual) or upload audio for transcription</p>
+      <div className="max-w-4xl mx-auto px-2 md:px-6 py-7 md:py-12">
+        <div className="text-center mb-7 md:mb-8">
+          <h1 className="text-2xl md:text-4xl font-bold text-white mb-2 md:mb-4">Start Transcription</h1>
+          <p className="text-base md:text-xl text-slate-300">Capture audio live (microphone or virtual) or upload audio for transcription</p>
         </div>
 
         <Tabs
@@ -497,7 +497,7 @@ const JoinMeeting = () => {
           defaultValue="audio"
           className="w-full"
         >
-          <TabsList className="grid w-full grid-cols-3 bg-white/10 border-white/20">
+          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 bg-white/10 border-white/20 text-xs md:text-base">
             <TabsTrigger
               value="audio"
               className="data-[state=active]:bg-purple-600 data-[state=active]:text-white"
@@ -519,36 +519,36 @@ const JoinMeeting = () => {
           </TabsList>
 
           {/* Audio Capture Mode */}
-          <TabsContent value="audio" className="mt-8 space-y-6">
+          <TabsContent value="audio" className="mt-6 md:mt-8 space-y-4 md:space-y-6">
             <Card className="bg-white/10 backdrop-blur-md border-white/20">
               <CardHeader>
-                <CardTitle className="text-white">Audio Capture Mode</CardTitle>
-                <CardDescription className="text-slate-300">
+                <CardTitle className="text-white text-lg md:text-xl">Audio Capture Mode</CardTitle>
+                <CardDescription className="text-slate-300 text-sm md:text-base">
                   Use your microphone to capture and transcribe audio in real-time. Give your note a descriptive title below before recording.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleAudioCaptureStart} className="space-y-6">
+                <form onSubmit={handleAudioCaptureStart} className="space-y-5 md:space-y-6">
                   <div className="space-y-2">
                     <Label htmlFor="note-title" className="text-white">Title</Label>
                     <Input
                       id="note-title"
                       type="text"
-                      placeholder="Enter a descriptive note title (e.g. Project Meeting, Lecture, etc)"
+                      placeholder="Enter a descriptive note title"
                       value={audioCaptureTitle}
                       onChange={(e) => setAudioCaptureTitle(e.target.value)}
                       className="bg-white/10 border-white/20 text-white placeholder:text-slate-400"
                       required
                     />
-                    <p className="text-sm text-slate-400">
+                    <p className="text-xs md:text-sm text-slate-400">
                       The title will be used to save your transcription note.
                     </p>
                   </div>
-                  <div className="flex gap-4">
+                  <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
                     <Button
                       type="submit"
                       disabled={loading || !audioCaptureTitle.trim()}
-                      className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+                      className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-3 py-2"
                     >
                       {loading ? "Initializing..." : (
                         <>
@@ -561,7 +561,7 @@ const JoinMeeting = () => {
                       <Button
                         type="button"
                         onClick={startRealTimeTranscription}
-                        className={`bg-green-600 hover:bg-green-700`}
+                        className={`flex-1 bg-green-600 hover:bg-green-700 px-3 py-2`}
                         disabled={loading || !audioCaptureTitle.trim() || !!microphonePermError}
                       >
                         <Mic className="h-4 w-4 mr-2" />
@@ -571,7 +571,7 @@ const JoinMeeting = () => {
                       <Button
                         type="button"
                         onClick={stopRealTimeTranscription}
-                        className="bg-red-600 hover:bg-red-700"
+                        className="flex-1 bg-red-600 hover:bg-red-700 px-3 py-2"
                       >
                         <Square className="h-4 w-4 mr-2" />
                         Stop Recording
@@ -581,11 +581,11 @@ const JoinMeeting = () => {
                 </form>
                 {/* Show microphone permission error if present */}
                 {microphonePermError && (
-                  <div className="mt-4 bg-red-900/40 border border-red-400 text-white p-3 rounded flex items-center gap-3">
+                  <div className="mt-4 bg-red-900/40 border border-red-400 text-white p-3 rounded flex flex-col sm:flex-row items-center gap-3">
                     <AlertCircle className="h-5 w-5 text-red-400" />
-                    <div>
+                    <div className="flex-1">
                       <b>Microphone Access Denied:</b>
-                      <div className="mt-1 text-sm">
+                      <div className="mt-1 text-xs md:text-sm">
                         {microphonePermError}
                         <p className="mt-2 text-yellow-200">To re-enable, check your browser's address bar for a blocked camera/mic icon and allow access, then reload this page. <br />
                         On Chrome: Click the lock icon → Site settings → Allow Microphone, then reload.<br />
@@ -596,18 +596,17 @@ const JoinMeeting = () => {
                 )}
                 {/* Live Transcript Display */}
                 {(isRecording || liveTranscript) && (
-                  <div className="mt-6">
-                    <h3 className="text-white font-semibold mb-3">Live Transcript</h3>
-                    <div className="bg-white/5 rounded-lg p-4 border border-white/10 min-h-[100px] max-h-[300px] overflow-y-auto">
-                      <p className="text-slate-300 leading-relaxed">
+                  <div className="mt-4 md:mt-6">
+                    <h3 className="text-white font-semibold mb-2 md:mb-3">Live Transcript</h3>
+                    <div className="bg-white/5 rounded-lg p-3 md:p-4 border border-white/10 min-h-[70px] max-h-52 md:max-h-[300px] overflow-y-auto">
+                      <p className="text-slate-300 leading-relaxed text-xs md:text-base break-words whitespace-pre-line">
                         {liveTranscript || (isRecording ? "Listening..." : "No transcript yet")}
                       </p>
                     </div>
                   </div>
                 )}
-                {/* ADDED: Manual reconnect button if error */}
                 {connectionStatus === 'error' && !microphonePermError && (
-                  <div className="mt-4 flex items-center gap-2">
+                  <div className="mt-4 flex flex-col sm:flex-row items-center gap-2">
                     <Button
                       type="button"
                       onClick={startRealTimeTranscription}
@@ -617,7 +616,7 @@ const JoinMeeting = () => {
                       <RefreshCw className="h-4 w-4 mr-2" />
                       Retry Connection
                     </Button>
-                    <span className="text-yellow-200 ml-2">Trouble connecting? Make sure your Deepgram API Key is configured on the backend.</span>
+                    <span className="text-yellow-200 ml-2 text-xs">Trouble connecting? Check Deepgram API Key on backend.</span>
                   </div>
                 )}
               </CardContent>
@@ -625,7 +624,7 @@ const JoinMeeting = () => {
           </TabsContent>
 
           {/* Virtual Audio Mode */}
-          <TabsContent value="virtual" className="mt-8 space-y-6">
+          <TabsContent value="virtual" className="mt-6 md:mt-8 space-y-4 md:space-y-6">
             <VirtualAudioSetup
               onDeviceSelected={handleVirtualDeviceSelected}
               onSetupComplete={handleVirtualAudioSetupComplete}
@@ -641,22 +640,20 @@ const JoinMeeting = () => {
           </TabsContent>
 
           {/* Upload Audio Mode */}
-          <TabsContent value="upload" className="mt-8">
+          <TabsContent value="upload" className="mt-6 md:mt-8">
             <Card className="bg-white/10 backdrop-blur-md border-white/20">
               <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
+                <CardTitle className="text-white flex items-center gap-2 text-lg md:text-xl">
                   <Upload className="h-5 w-5 text-purple-400" />
                   Upload Audio File
                 </CardTitle>
-                <CardDescription className="text-slate-300">
-                  Upload a recorded meeting or audio file for AI-powered transcription
-                </CardDescription>
+                <CardDescription className="text-slate-300">Upload a meeting or audio file for AI-powered transcription</CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleFileUpload} className="space-y-6">
+                <form onSubmit={handleFileUpload} className="space-y-4 md:space-y-6">
                   <div className="space-y-2">
                     <Label htmlFor="audio-file" className="text-white">Audio File</Label>
-                    <div className="border-2 border-dashed border-white/20 rounded-lg p-8 text-center hover:border-purple-400 transition-colors">
+                    <div className="border-2 border-dashed border-white/20 rounded-lg p-5 md:p-8 text-center hover:border-purple-400 transition-colors">
                       <input
                         id="audio-file"
                         type="file"
@@ -664,24 +661,21 @@ const JoinMeeting = () => {
                         onChange={handleFileChange}
                         className="hidden"
                       />
-                      <label htmlFor="audio-file" className="cursor-pointer flex flex-col items-center gap-4">
-                        <Upload className="h-12 w-12 text-slate-400" />
+                      <label htmlFor="audio-file" className="cursor-pointer flex flex-col items-center gap-3 md:gap-4">
+                        <Upload className="h-8 w-8 md:h-12 md:w-12 text-slate-400" />
                         <div>
-                          <p className="text-white font-medium">
+                          <p className="text-white font-medium text-sm md:text-base">
                             {selectedFile ? selectedFile.name : 'Click to upload audio file'}
                           </p>
-                          <p className="text-sm text-slate-400">
-                            Supports MP3, WAV, M4A, FLAC, and other audio formats
-                          </p>
+                          <p className="text-xs md:text-sm text-slate-400">Supports MP3, WAV, M4A, FLAC, and other formats</p>
                         </div>
                       </label>
                     </div>
                   </div>
-
                   <Button
                     type="submit"
                     disabled={loading || !selectedFile}
-                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-3 py-2"
                   >
                     {loading ? 'Processing...' : (
                       <>
@@ -698,44 +692,40 @@ const JoinMeeting = () => {
 
         {/* Transcription Results */}
         {(transcriptionResults.length > 0 || transcriptSegments.length > 0) && (
-          <Card className="mt-8 bg-white/10 backdrop-blur-md border-white/20">
+          <Card className="mt-7 md:mt-8 bg-white/10 backdrop-blur-md border-white/20">
             <CardHeader>
-              <CardTitle className="text-white">Transcription Results</CardTitle>
+              <CardTitle className="text-white text-lg md:text-xl">Transcription Results</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
+              <div className="space-y-3 md:space-y-4">
                 {transcriptSegments.length > 0 ? (
-                  // Show structured transcript segments
                   transcriptSegments.map((segment, index) => (
-                    <div key={segment.id || index} className="bg-white/5 rounded-lg p-4 border border-white/10">
-                      <div className="flex items-center justify-between mb-2">
+                    <div key={segment.id || index} className="bg-white/5 rounded-lg p-3 md:p-4 border border-white/10 overflow-x-auto">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-1 md:mb-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-purple-400">
-                            {segment.speaker}
-                          </span>
+                          <span className="text-xs font-medium text-purple-400">{segment.speaker}</span>
                           <span className="text-xs text-slate-400">{segment.timestamp}</span>
                         </div>
-                        <span className="text-xs text-green-400">
+                        <span className="text-xs text-green-400 mt-1 sm:mt-0">
                           {Math.round(segment.confidence * 100)}%
                         </span>
                       </div>
-                      <p className="text-slate-300 leading-relaxed">{segment.text}</p>
+                      <p className="text-slate-300 leading-relaxed text-xs md:text-base break-words">{segment.text}</p>
                     </div>
                   ))
                 ) : (
-                  // Show basic transcription results
                   transcriptionResults.map((text, index) => (
-                    <div key={index} className="bg-white/5 rounded-lg p-4 border border-white/10">
-                      <p className="text-slate-300 leading-relaxed">{text}</p>
+                    <div key={index} className="bg-white/5 rounded-lg p-3 md:p-4 border border-white/10 overflow-x-auto">
+                      <p className="text-slate-300 leading-relaxed text-xs md:text-base break-words">{text}</p>
                     </div>
                   ))
                 )}
               </div>
-              <div className="mt-4 flex gap-2">
+              <div className="mt-3 md:mt-4 flex flex-col md:flex-row gap-2">
                 <Button
                   onClick={handleSaveTranscription}
                   disabled={saving}
-                  className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white"
+                  className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-3 py-2"
                 >
                   {saving ? 'Saving...' : (
                     <>
@@ -752,7 +742,7 @@ const JoinMeeting = () => {
                     navigator.clipboard.writeText(transcriptText);
                   }}
                   variant="outline"
-                  className="border-white/30 hover:bg-white/10 text-slate-950"
+                  className="border-white/30 hover:bg-white/10 text-slate-950 px-3 py-2"
                 >
                   Copy All
                 </Button>
@@ -762,7 +752,7 @@ const JoinMeeting = () => {
                     setTranscriptSegments([]);
                   }}
                   variant="outline"
-                  className="border-white/30 hover:bg-white/10 text-slate-950"
+                  className="border-white/30 hover:bg-white/10 text-slate-950 px-3 py-2"
                 >
                   Clear
                 </Button>
@@ -777,5 +767,5 @@ const JoinMeeting = () => {
 
 export default JoinMeeting;
 
-// This file is now very long (>680 lines).
+// This file is now very long (>780 lines).
 // Consider refactoring into smaller hooks/components for maintainability!

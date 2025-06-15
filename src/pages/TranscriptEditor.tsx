@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Edit2, Trash2, RotateCcw } from 'lucide-react';
@@ -296,8 +297,8 @@ const TranscriptEditor = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       {/* Header */}
-      <header className="px-4 md:px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <header className="px-3 md:px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center space-x-2 md:space-x-4">
             <Link to="/notes" className="text-white hover:text-purple-400 transition-colors">
               <ArrowLeft className="h-5 w-5 md:h-6 md:w-6" />
@@ -311,14 +312,14 @@ const TranscriptEditor = () => {
               <EditableTitle
                 title={transcription.title}
                 onUpdate={handleTitleUpdate}
-                className="text-white font-medium text-sm md:text-base"
+                className="text-white font-medium text-xs md:text-base"
               />
             ) : (
-              <span className="text-white font-medium text-sm md:text-base">{transcription.title}</span>
+              <span className="text-white font-medium text-xs md:text-base">{transcription.title}</span>
             )}
           </div>
           {isOwner && (
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 mt-2 sm:mt-0">
               <Button
                 variant="outline"
                 size="sm"
@@ -355,25 +356,25 @@ const TranscriptEditor = () => {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-8">
-        <div className="grid lg:grid-cols-3 gap-4 md:gap-8">
+      <div className="max-w-7xl mx-auto px-2 md:px-6 py-4 md:py-8">
+        <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 md:gap-8">
           {/* Main Content */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 order-2 lg:order-1">
             <Tabs defaultValue="content" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 bg-white/10 mb-4">
+              <TabsList className="grid w-full grid-cols-2 bg-white/10 mb-3 md:mb-4 text-xs md:text-base">
                 <TabsTrigger value="content" className="text-white data-[state=active]:bg-purple-600">Content</TabsTrigger>
                 <TabsTrigger value="summary" className="text-white data-[state=active]:bg-purple-600">Summary</TabsTrigger>
               </TabsList>
               
               <TabsContent value="content">
                 {editingContent && isOwner ? (
-                  <div className="space-y-4">
+                  <div className="space-y-3 md:space-y-4">
                     <Textarea
                       value={editedContent}
                       onChange={(e) => setEditedContent(e.target.value)}
-                      className="min-h-[400px] bg-white/10 border-white/20 text-white"
+                      className="min-h-[250px] md:min-h-[400px] bg-white/10 border-white/20 text-white text-xs md:text-base"
                     />
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                       <Button onClick={handleContentUpdate} className="bg-green-600 hover:bg-green-700">
                         Save Changes
                       </Button>
@@ -383,17 +384,19 @@ const TranscriptEditor = () => {
                     </div>
                   </div>
                 ) : (
-                  <TranscriptContent
-                    content={transcription.content || ''}
-                    isLoading={false}
-                  />
+                  <div className="overflow-x-auto">
+                    <TranscriptContent
+                      content={transcription.content || ''}
+                      isLoading={false}
+                    />
+                  </div>
                 )}
               </TabsContent>
               
               <TabsContent value="summary">
-                <div className="bg-white/10 backdrop-blur-md border-white/20 rounded-lg p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-white text-lg font-semibold">Transcription Summary</h3>
+                <div className="bg-white/10 backdrop-blur-md border-white/20 rounded-lg p-4 md:p-6">
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-2 md:mb-4 gap-2">
+                    <h3 className="text-white text-base md:text-lg font-semibold">Transcription Summary</h3>
                     {isOwner && (
                       <div className="flex gap-2">
                         {!transcription.summary && (
@@ -419,14 +422,13 @@ const TranscriptEditor = () => {
                       </div>
                     )}
                   </div>
-                  
                   {transcription.summary ? (
-                    <div className="bg-white/5 rounded-lg p-4">
-                      <p className="text-white whitespace-pre-wrap">{transcription.summary}</p>
+                    <div className="bg-white/5 rounded-lg p-3 md:p-4">
+                      <p className="text-white whitespace-pre-wrap text-xs md:text-base">{transcription.summary}</p>
                     </div>
                   ) : (
-                    <div className="bg-white/5 rounded-lg p-4 text-center">
-                      <p className="text-slate-400">
+                    <div className="bg-white/5 rounded-lg p-3 md:p-4 text-center">
+                      <p className="text-slate-400 text-xs md:text-base">
                         {generatingSummary ? 'Generating summary...' : isOwner ? 'No summary available. Click "Generate Summary" to create one.' : 'No summary available.'}
                       </p>
                     </div>
@@ -437,13 +439,12 @@ const TranscriptEditor = () => {
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-4 md:space-y-6">
+          <div className="order-1 lg:order-2 space-y-4 md:space-y-6 mb-5 lg:mb-0">
             <TranscriptMetadata
               sourceType={transcription.source_type}
               createdAt={transcription.created_at}
               duration={transcription.duration}
             />
-            
             <TranscriptActions
               onDownload={handleDownload}
               onShare={handleShare}
@@ -457,3 +458,4 @@ const TranscriptEditor = () => {
 };
 
 export default TranscriptEditor;
+
