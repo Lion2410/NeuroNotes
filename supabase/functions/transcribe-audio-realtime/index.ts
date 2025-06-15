@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.10";
@@ -26,6 +27,29 @@ function getUserIdFromAuth(authHeader: string | null): string | null {
   }
 }
 
+// Strong logging for received multipart audio
+async function extractAudioFromForm(form: FormData) {
+  const audioRaw = form.get("audio");
+  if (!audioRaw) {
+    console.error("[ERROR] No audio field in incoming formData");
+    return null;
+  }
+  if (typeof audioRaw === "string") {
+    console.warn("[WARN] Unexpected audio field as string!");
+    return null;
+  }
+  // For Blob/File: browser multipart
+  const audioBuf = new Uint8Array(await audioRaw.arrayBuffer());
+  // Log first N bytes, size, type, name
+  let first16Bytes = Array.from(audioBuf.slice(0, 16));
+  let declaredType = audioRaw.type;
+  let filename = audioRaw.name ?? "";
+  console.log("[INFO] Received audio Blob:",
+    { filename, declaredType, size: audioBuf.length, first16Bytes }
+  );
+  return { audioBuf, filename, declaredType };
+}
+
 async function processAudioAndTranscribe({
   userId, sessionId, audioBuf, mode, deviceLabel
 }: {
@@ -35,9 +59,19 @@ async function processAudioAndTranscribe({
   mode: string,
   deviceLabel?: string
 }) {
-  // Build a multipart form for Deepgram API
+  /* 
+    Deepgram expects:
+      - model: nova-2
+      - encoding: linear16
+      - sample_rate: 24000
+      - language: en-US
+      - diarize: true
+      - audio content-type: audio/raw (no header, PCM16, mono)
+      - filename: audio.pcm (not required, but for clarity)
+  */
   const form = new FormData();
-  const blob = new Blob([audioBuf], { type: 'audio/raw' }); // 24kHz PCM expected
+  // We set type "audio/raw" and name "audio.pcm" no matter what, for maximum clarity
+  const blob = new Blob([audioBuf], { type: 'audio/raw' });
   form.append('audio', blob, 'audio.pcm');
   form.append('model', 'nova-2');
   form.append('punctuate', 'true');
@@ -46,17 +80,19 @@ async function processAudioAndTranscribe({
   form.append('sample_rate', '24000');
   form.append('language', 'en-US');
 
-  // Deepgram POST not WebSocket
+  // Actually send POST to Deepgram
   const dgRes = await fetch("https://api.deepgram.com/v1/listen", {
     method: "POST",
     headers: {
       "Authorization": `Token ${deepgramApiKey}`
+      // Content-Type will be set automatically for multipart
     },
     body: form
   });
 
   if (!dgRes.ok) {
     const text = await dgRes.text();
+    console.error("[DG ERROR] Deepgram response error", dgRes.status, text);
     throw new Error(`Deepgram error: ${text}`);
   }
   const dgJson = await dgRes.json();
@@ -158,7 +194,7 @@ serve(async (req: Request) => {
   }
 
   try {
-    // Parse fields: sessionId (optional), mode, deviceLabel (optional), audio (base64 string, or Blob)
+    // Parse fields: sessionId (optional), mode, deviceLabel (optional), audio (Blob)
     const authHeader = req.headers.get('authorization');
     const userId = getUserIdFromAuth(authHeader);
     if (!userId) {
@@ -173,6 +209,7 @@ serve(async (req: Request) => {
     const ctype = req.headers.get("content-type") || "";
     let body: any = {};
     let contentReadMode = "";
+    let audioExtracted = null;
     if (ctype.includes("application/json")) {
       body = await req.json();
       contentReadMode = "json";
@@ -186,7 +223,10 @@ serve(async (req: Request) => {
       body.sessionId = form.get("sessionId")?.toString() || undefined;
       body.mode = form.get("mode")?.toString() || undefined;
       body.deviceLabel = form.get("deviceLabel")?.toString() || undefined;
-      body.audio = form.get("audio");
+      audioExtracted = await extractAudioFromForm(form);
+      if (audioExtracted) {
+        body.audio = audioExtracted.audioBuf;
+      }
     } else {
       // Log unsupported or missing content-type!
       console.error("[ERROR] Unsupported Content-Type:", ctype);
@@ -213,21 +253,29 @@ serve(async (req: Request) => {
     }
 
     let audioBuf: Uint8Array;
-    if (typeof body.audio === "string") {
+    if (audioExtracted && audioExtracted.audioBuf) {
+      audioBuf = audioExtracted.audioBuf;
+    } else if (typeof body.audio === "string") {
+      // Base64 fallback
       const bin = atob(body.audio);
       audioBuf = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; ++i) audioBuf[i] = bin.charCodeAt(i);
+    } else if (body.audio instanceof Uint8Array) {
+      audioBuf = body.audio;
     } else if (typeof body.audio === "object" && body.audio.arrayBuffer) {
-      // Blob/File: browser multipart
+      // Blob/File: browser multipart fallback
       audioBuf = new Uint8Array(await body.audio.arrayBuffer());
     } else {
       // Logging the problematic format!
-      console.error("[ERROR] Invalid audio format", { value: body.audio, typeof: typeof body.audio });
+      console.error("[ERROR] Invalid audio format (final check)", { value: body.audio, typeof: typeof body.audio });
       return new Response(JSON.stringify({ error: "Invalid audio format. audio field type: " + typeof body.audio }), {
         status: 422,
         headers: corsHeaders
       });
     }
+
+    // PCM format debug logging
+    console.log("[DEBUG] Final audioBuf for Deepgram: length", audioBuf.length, "first 24 bytes:", Array.from(audioBuf.slice(0,24)));
 
     // Call main logic; on errors, log and respond clearly
     let responseData;
@@ -241,6 +289,7 @@ serve(async (req: Request) => {
       });
     } catch (err: any) {
       console.error("[ERROR] processAudioAndTranscribe failure:", err && err.message, err && err.stack);
+      // Improved Deepgram error reporting
       return new Response(JSON.stringify({ error: "Internal ASR error: " + (err && err.message) }), {
         status: 500,
         headers: corsHeaders
