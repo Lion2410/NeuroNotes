@@ -81,23 +81,37 @@ const JoinMeeting = () => {
     onTranscriptsUpdate: setVirtualAudioTranscripts,
   });
 
+  // Add debug state for MediaRecorder/running errors
+  const [virtualMediaRecorderError, setVirtualMediaRecorderError] = useState<string | null>(null);
+
+  // Virtual audio debug info for UI
+  const [virtualAudioDebug, setVirtualAudioDebug] = useState<any>(null);
+
+  // Track stream/manual restart for cleaner debug and state
   useEffect(() => {
-    return () => {
-      // Cleanup on unmount
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-      }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-      if (virtualAudioStream) {
-        virtualAudioStream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, []);
+    // Whenever the stream changes, log and reset chunks & recording
+    setVirtualMediaRecorderError(null);
+    setIsVirtualRecording(false);
+    setVirtualAudioTranscripts([]);
+    resetVirtRecording();
+    if (virtualAudioStream) {
+      console.log("[VirtualAudio] New stream attached:", virtualAudioStream);
+      // Show media track info for debug UI
+      setVirtualAudioDebug({
+        active: virtualAudioStream.active,
+        trackCount: virtualAudioStream.getTracks().length,
+        tracks: virtualAudioStream.getTracks().map(t => ({
+          kind: t.kind,
+          enabled: t.enabled,
+          readyState: t.readyState,
+          muted: (t as any)?.muted,
+          id: t.id
+        })),
+      });
+    } else {
+      setVirtualAudioDebug(null);
+    }
+  }, [virtualAudioStream, resetVirtRecording]);
 
   // Virtual audio handlers
   const handleVirtualDeviceSelected = (device: VirtualAudioDevice) => {
@@ -111,23 +125,101 @@ const JoinMeeting = () => {
       title: "Virtual Audio Ready",
       description: "Ready to capture meeting audio for transcription",
     });
+    if (!stream) {
+      setVirtualMediaRecorderError("MediaStream is null after setup!");
+      console.error("[VirtualAudio] Setup returned a null stream.");
+      return;
+    }
+    // Log stream properties for troubleshooting
+    console.log("[VirtualAudio] Setup complete. Stream details:", {
+      active: stream.active,
+      trackCount: stream.getTracks().length,
+      tracks: stream.getTracks().map(t => ({
+        kind: t.kind,
+        enabled: t.enabled,
+        readyState: t.readyState,
+        muted: (t as any)?.muted,
+        id: t.id
+      })),
+      constraints: stream.getAudioTracks()[0]?.getSettings?.(),
+    });
   };
 
-  const handleTranscriptUpdate = (segments: TranscriptSegment[]) => {
-    setTranscriptSegments(segments);
-    // Combine all segments into a single transcript for saving
-    const combinedTranscript = segments
-      .map(segment => `[${segment.timestamp}] ${segment.speaker}: ${segment.text}`)
-      .join('\n');
-    setLiveTranscript(combinedTranscript);
-  };
-
+  // --- OVERRIDE: toggleVirtualAudioTranscription with better error handling & codec fallback ---
   const toggleVirtualAudioTranscription = () => {
+    setVirtualMediaRecorderError(null);
+
+    if (!virtualAudioStream) {
+      setVirtualMediaRecorderError("Virtual audio stream unavailable!");
+      toast({
+        title: "Audio Device Error",
+        description: "No virtual audio stream is active. Please select and setup a device first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    // Check stream tracks live before starting
+    const tracks = virtualAudioStream.getTracks();
+    if (!tracks.length) {
+      setVirtualMediaRecorderError("No media tracks present in virtual audio stream.");
+      toast({
+        title: "Audio Device Error",
+        description: "No audio tracks found on selected virtual stream.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const audioTrack = virtualAudioStream.getAudioTracks()[0];
+    if (!audioTrack) {
+      setVirtualMediaRecorderError("No audio track found in stream!");
+      toast({
+        title: "Audio Track Error",
+        description: "The selected audio device is not providing an active audio track.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (isVirtualRecording) {
       stopVirtRecording();
+      console.log("[VirtualAudio] Stopping chunked transcription (user toggle).");
     } else {
       setVirtualAudioTranscripts([]);
       resetVirtRecording();
+
+      // Diagnosing common causes for MediaRecorder failing to start:
+      // -- repeat try for codecs, show errors if it fails
+      let recorder;
+      let codecTried = '';
+      try {
+        codecTried = "audio/webm;codecs=opus";
+        recorder = new MediaRecorder(virtualAudioStream, { mimeType: codecTried });
+        console.log("[VirtualAudio] MediaRecorder created with", codecTried);
+      } catch (err1) {
+        try {
+          codecTried = "audio/webm";
+          recorder = new MediaRecorder(virtualAudioStream, { mimeType: codecTried });
+          console.log("[VirtualAudio] MediaRecorder created with fallback", codecTried);
+        } catch (err2) {
+          try {
+            codecTried = "";
+            recorder = new MediaRecorder(virtualAudioStream);
+            console.log("[VirtualAudio] MediaRecorder created with default mimeType.");
+          } catch (errFinal) {
+            console.error("[VirtualAudio] Failed to create MediaRecorder with any mimeType.", errFinal);
+            setVirtualMediaRecorderError("Failed to create MediaRecorder: " + (errFinal && errFinal.message ? errFinal.message : errFinal));
+            toast({
+              title: "MediaRecorder Error",
+              description: "Cannot record from selected audio device: " + (errFinal?.message || "unknown error"),
+              variant: "destructive"
+            });
+            return;
+          }
+        }
+      }
+      // If it makes it here, log success and proceed with normal handler
+      console.log("[VirtualAudio] Starting virtual chunked transcription (MediaRecorder mode:", codecTried || "default", ").");
+      setVirtualMediaRecorderError(null);
+      setIsVirtualRecording(true);
     }
     setIsVirtualRecording((prev) => !prev);
   };
@@ -646,10 +738,38 @@ const JoinMeeting = () => {
 
             {/* Virtual Audio Mode */}
             <TabsContent value="virtual" className="mt-6 md:mt-8 space-y-4 md:space-y-6">
+              {/* Live Stream/Device Debug Inspector */}
+              {meetingMode === "virtual" && (
+                <div className="mb-4">
+                  <div className="rounded bg-slate-900/90 border border-slate-700 px-4 py-3 text-xs text-slate-200">
+                    <span className="font-bold text-purple-400 mr-2">Virtual Audio Debug</span>
+                    {virtualAudioDebug ? (
+                      <div>
+                        <div>Stream active: <span className={virtualAudioDebug.active ? "text-green-400" : "text-red-400"}>{String(virtualAudioDebug.active)}</span></div>
+                        <div>Tracks: {virtualAudioDebug.trackCount}</div>
+                        {virtualAudioDebug.tracks.map((track: any, idx: number) => (
+                          <div key={track.id || idx} className="ml-2">
+                            {track.kind} (id={track.id}) enabled: <span className={track.enabled ? "text-green-400" : "text-red-400"}>{String(track.enabled)}</span>
+                            , readyState: {track.readyState}
+                            {typeof track.muted !== "undefined" && <>, muted: {String(track.muted)}</>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-red-400">No virtual audio stream assigned</div>
+                    )}
+                  </div>
+                </div>
+              )}
               <VirtualAudioSetup
                 onDeviceSelected={handleVirtualDeviceSelected}
                 onSetupComplete={handleVirtualAudioSetupComplete}
               />
+              {virtualMediaRecorderError && (
+                <div className="mb-2 rounded bg-red-950/70 border border-red-700 px-4 py-2 text-xs text-red-300">
+                  <strong>Error:</strong> {virtualMediaRecorderError}
+                </div>
+              )}
               {virtualAudioStream && (
                 <Card className="bg-white/10 backdrop-blur-md border-white/20 p-0">
                   <CardHeader className="pb-2">
@@ -867,5 +987,5 @@ const JoinMeeting = () => {
 };
 
 export default JoinMeeting;
-// This file is now very long (>780 lines).
+// This file is now very long (>870 lines).
 // Consider refactoring into smaller hooks/components for maintainability!
