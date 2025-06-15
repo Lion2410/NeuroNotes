@@ -52,6 +52,10 @@ const JoinMeeting = () => {
   // Add new state for audio capture note title
   const [audioCaptureTitle, setAudioCaptureTitle] = useState('');
 
+  // ADD MISSING CONFIG STATE
+  const [checkingConfig, setCheckingConfig] = useState(false);
+  const [deepgramConfigured, setDeepgramConfigured] = useState(false);
+
   // ADD: Deepgram API healthcheck utility
   const checkDeepgramKey = async (): Promise<boolean> => {
     // Call the edge function via HTTP and expect 401/500 if not configured
