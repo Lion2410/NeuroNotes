@@ -449,9 +449,11 @@ const JoinMeeting = () => {
                   <Button
                     onClick={() => setMeetingMode('bot')}
                     variant={meetingMode === 'bot' ? 'default' : 'outline'}
-                    className={`h-20 p-4 ${meetingMode === 'bot' 
-                      ? 'bg-purple-600 hover:bg-purple-700' 
-                      : 'border-white/30 hover:bg-white/10'} text-white`}
+                    className={`h-20 p-4 ${
+                      meetingMode === 'bot'
+                        ? 'bg-purple-600 hover:bg-purple-700'
+                        : 'bg-white/20 hover:bg-white/30 border-none'
+                    } text-white transition-all duration-200`}
                   >
                     <div className="text-center">
                       <ExternalLink className="h-6 w-6 mx-auto mb-2" />
@@ -463,9 +465,11 @@ const JoinMeeting = () => {
                   <Button
                     onClick={() => setMeetingMode('virtual')}
                     variant={meetingMode === 'virtual' ? 'default' : 'outline'}
-                    className={`h-20 p-4 ${meetingMode === 'virtual' 
-                      ? 'bg-purple-600 hover:bg-purple-700' 
-                      : 'border-white/30 hover:bg-white/10'} text-white`}
+                    className={`h-20 p-4 ${
+                      meetingMode === 'virtual'
+                        ? 'bg-purple-600 hover:bg-purple-700'
+                        : 'bg-white/20 hover:bg-white/30 border-none'
+                    } text-white transition-all duration-200`}
                   >
                     <div className="text-center">
                       <Headphones className="h-6 w-6 mx-auto mb-2" />
