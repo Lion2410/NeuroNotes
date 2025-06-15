@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, User, Save, Camera } from 'lucide-react';
@@ -287,25 +286,25 @@ const Profile = () => {
 
                   <div className="grid md:grid-cols-2 gap-4 md:gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="company" className="text-white text-sm">Company</Label>
+                      <Label htmlFor="company" className="text-white text-sm">Company/Institution</Label>
                       <Input
                         id="company"
                         name="company"
                         value={formData.company}
                         onChange={handleInputChange}
                         className="bg-white/10 border-white/20 text-white placeholder:text-slate-400 text-sm"
-                        placeholder="Enter your company"
+                        placeholder="Enter your company or institution"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="jobTitle" className="text-white text-sm">Job Title</Label>
+                      <Label htmlFor="jobTitle" className="text-white text-sm">Job Title/Department</Label>
                       <Input
                         id="jobTitle"
                         name="jobTitle"
                         value={formData.jobTitle}
                         onChange={handleInputChange}
                         className="bg-white/10 border-white/20 text-white placeholder:text-slate-400 text-sm"
-                        placeholder="Enter your job title"
+                        placeholder="Enter your job title or department"
                       />
                     </div>
                   </div>
