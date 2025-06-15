@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.10";
@@ -172,6 +171,25 @@ async function processAudioAndTranscribe({
   };
 }
 
+// New helper: guess PCM16 format (PCM mono 24kHz, int16, little endian)
+function isLikelyPCM16LE24kHz(audioBuf: Uint8Array) {
+  // PCM16, so 2 bytes per sample
+  if (audioBuf.length % 2 !== 0) return false;
+  // 24kHz for a 10s chunk: 24000 x 2 x 10 = 480,000 bytes
+  // Allow some tolerance, but too small/large is wrong:
+  if (audioBuf.length < 24000) return false;
+  // Optionally check: are the bytes not all zero or all FF
+  const isAllZero = audioBuf.every(b => b === 0);
+  const isAllFF = audioBuf.every(b => b === 0xff);
+  if (isAllZero || isAllFF) return false;
+  // Peek a few samples and see if low byte is ~random on voice
+  let varSamples = 0, N = 32;
+  for (let i = 0; i < audioBuf.length - 4 && i < N * 2; i += 2) {
+    if (audioBuf[i] !== audioBuf[0] || audioBuf[i+1] !== audioBuf[1]) varSamples++;
+  }
+  return varSamples > 2;
+}
+
 serve(async (req: Request) => {
   // CORS preflight
   if (req.method === "OPTIONS") {
@@ -266,7 +284,6 @@ serve(async (req: Request) => {
       // Blob/File: browser multipart fallback
       audioBuf = new Uint8Array(await body.audio.arrayBuffer());
     } else {
-      // Logging the problematic format!
       console.error("[ERROR] Invalid audio format (final check)", { value: body.audio, typeof: typeof body.audio });
       return new Response(JSON.stringify({ error: "Invalid audio format. audio field type: " + typeof body.audio }), {
         status: 422,
@@ -276,6 +293,21 @@ serve(async (req: Request) => {
 
     // PCM format debug logging
     console.log("[DEBUG] Final audioBuf for Deepgram: length", audioBuf.length, "first 24 bytes:", Array.from(audioBuf.slice(0,24)));
+
+    // --- ENHANCED AUDIO DEBUGGING ---
+    const buf16 = Array.from(audioBuf.slice(0, 64));
+    const allzero = audioBuf.every(x => x === 0);
+    const pcmLikely = isLikelyPCM16LE24kHz(audioBuf);
+
+    console.log("[AUDIO DEBUG] audioBuflen", audioBuf.length, "first64", buf16, "allzero?", allzero, "likelyPCM16LE?", pcmLikely);
+
+    if (!pcmLikely) {
+      return new Response(
+        JSON.stringify({ error: "Audio not recognized as PCM 16-bit (LE, 24kHz) or is silent/corrupt. Make sure system audio is captured and mic is unmuted." }),
+        { status: 422, headers: corsHeaders }
+      );
+    }
+    // --- END ENHANCED ---
 
     // Call main logic; on errors, log and respond clearly
     let responseData;

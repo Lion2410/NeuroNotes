@@ -1,10 +1,10 @@
-
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Mic, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import AudioWaveformVisualizer from "./AudioWaveformVisualizer";
 
 interface SpeakerSegment {
   speaker: string;
@@ -48,6 +48,14 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   const recBuffersRef = useRef<Float32Array[]>([]);
   const sessionIdRef = useRef<string | null>(null);
   const fullSpeakerSegmentsRef = useRef<SpeakerSegment[]>([]);
+  const [lastRecordedChunk, setLastRecordedChunk] = useState<Float32Array | null>(null);
+  const [lastChunkStats, setLastChunkStats] = useState<{
+    peak: number;
+    rms: number;
+    zeros: number;
+    length: number;
+    example: number[];
+  } | null>(null);
 
   // Stop logic
   const stopRecording = useCallback(() => {
@@ -129,24 +137,29 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     }
   }, [setIsRecording, toast]);
 
-  // PCM conversion: always little-endian, always int16, always logs
+  // PCM conversion helper, with stats calculation for waveform
   function float32ToPCM16(floatBuf: Float32Array): Uint8Array {
     const out = new Uint8Array(floatBuf.length * 2);
     const view = new DataView(out.buffer);
+    let peak = 0, rms = 0, zeros = 0;
     for (let i = 0; i < floatBuf.length; i++) {
       let s = Math.max(-1, Math.min(1, floatBuf[i]));
+      if (Math.abs(s) > peak) peak = Math.abs(s);
+      rms += s * s;
+      if (s === 0) zeros++;
       const sample = s < 0 ? s * 32768 : s * 32767;
       view.setInt16(i * 2, sample, true);
     }
-    // Logging
+    rms = Math.sqrt(rms / floatBuf.length);
+    // Small demo: also show 16 sample slice
     const example = Array.from(out.slice(0, 16));
-    const nonzero = out.some(b => b !== 0);
-    if (!nonzero) {
-      console.warn('[PCM16] WARNING: All zero PCM16 chunk! Audio lost or silence.');
-    }
-    // Log base64 for further troubleshooting only first 32 bytes
-    const b64 = btoa(String.fromCharCode(...out.slice(0, 32)));
-    console.log('[PCM16] Length:', out.length, 'First 16 bytes:', example, 'Base64(32B):', b64);
+    setLastChunkStats({
+      peak: Math.round(peak * 1000) / 1000,
+      rms: Math.round(rms * 1000) / 1000,
+      zeros,
+      length: floatBuf.length,
+      example,
+    });
     return out;
   }
 
@@ -178,12 +191,14 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     return float32ToPCM16(resampled);
   }
 
-  // Chunking logic: always sends real PCM16 data (never empty chunk)
+  // Chunking logic: sends PCM, update stats for UI with the buffer
   const handleChunk = async (sampleRate: number) => {
     if (!recBuffersRef.current.length) return;
     setProcessing(true);
     const floatBuf = flattenBuffers(recBuffersRef.current);
     recBuffersRef.current = [];
+    setLastRecordedChunk(floatBuf); // <-- For waveform UI
+
     const pcmData = await toPCMBuffer(floatBuf, sampleRate);
 
     // Log summary
@@ -192,6 +207,11 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
     if (isZero) {
       console.error('[AudioRecorder] ERROR: Buffered chunk is all zero. Microphone silent or disconnected?');
+      toast({
+        title: "Audio Issue",
+        description: "A chunk of audio was nearly silent! Your mic or system audio is not transmitting. Check permissions, device & volume.",
+        variant: "destructive"
+      });
     }
     // Prepare formData
     const formData = new FormData();
@@ -308,18 +328,30 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
           </div>
         </div>
         {isRecording && (
-          <div className="flex items-center gap-3 mb-4">
+          <div className="flex flex-col md:flex-row gap-2 mb-4">
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
               <span className="text-white text-sm">Recording in progress...</span>
+              <span className="text-white font-mono text-xs bg-white/10 px-2 py-1 rounded ml-2">
+                {renderDuration()}
+              </span>
             </div>
-            <span className="text-white font-mono text-xs bg-white/10 px-2 py-1 rounded">
-              {renderDuration()}
-            </span>
+            {/* Waveform + stats */}
+            <div className="flex items-center gap-3 mt-2 md:mt-0">
+              <AudioWaveformVisualizer buffer={lastRecordedChunk} width={220} height={32} />
+              {lastChunkStats && (
+                <div className="text-xs text-white bg-black/30 px-2 py-1 rounded border border-white/10 ml-2">
+                  <span>len: {lastChunkStats.length}</span>{" "}
+                  <span>peak: {lastChunkStats.peak}</span>{" "}
+                  <span>rms: {lastChunkStats.rms}</span>{" "}
+                  <span>zeros: {lastChunkStats.zeros}</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
         {transcript && (
-          <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+          <div className="bg-white/5 rounded-lg p-4 border border-white/10 mt-2">
             <h4 className="text-white font-medium mb-2">Live Transcript:</h4>
             <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-line">{transcript}</p>
             {segments.length > 0 && (
