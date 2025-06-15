@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Mic, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -30,18 +29,23 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   isRecording,
   setIsRecording,
 }) => {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { toast } = useToast();
 
   const [transcript, setTranscript] = useState('');
   const [segments, setSegments] = useState<SpeakerSegment[]>([]);
   const [processing, setProcessing] = useState(false);
 
+  // duration state
+  const [recordingStart, setRecordingStart] = useState<Date | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
   // references
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
-  const timerRef = useRef<number | null>(null);
+  const timerRef = useRef<number | null>(null); // handles chunking
+  const elapsedTimerRef = useRef<number | null>(null); // handles duration
   const recBuffersRef = useRef<Float32Array[]>([]);
   const sessionIdRef = useRef<string | null>(null);
 
@@ -58,6 +62,15 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     if (audioContextRef.current) {
       audioContextRef.current.close();
     }
+
+    // Stop duration timer
+    if (elapsedTimerRef.current) {
+      clearInterval(elapsedTimerRef.current);
+      elapsedTimerRef.current = null;
+    }
+
+    setElapsedSeconds(0);
+    setRecordingStart(null);
 
     // Finalize transcript
     const transcriptText = fullSpeakerSegmentsRef.current
@@ -100,6 +113,15 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         recBuffersRef.current.push(new Float32Array(input));
       };
 
+      // Set recording start time and begin duration timer
+      const now = new Date();
+      setRecordingStart(now);
+      setElapsedSeconds(0);
+      if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current);
+      elapsedTimerRef.current = window.setInterval(() => {
+        setElapsedSeconds(prev => prev + 1);
+      }, 1000);
+
       setIsRecording(true);
       toast({
         title: "Recording Started",
@@ -130,16 +152,44 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     if (sessionIdRef.current) formData.append('sessionId', sessionIdRef.current);
     if (user?.id) formData.append('deviceLabel', 'microphone');
 
+    // Get freshest auth token from Supabase session
+    let accessToken = '';
+    if (session && session.access_token) {
+      accessToken = session.access_token;
+    }
+
     try {
       const res = await fetch(supabaseWSURL, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('sb-access-token') || ''}`
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: formData
       });
 
-      if (!res.ok) throw new Error("Transcription failed");
+      if (res.status === 401 || res.status === 403) {
+        // Fatal: lose auth, must stop
+        toast({
+          title: "Authentication Error",
+          description: "Your session has expired or is invalid. Please sign in again.",
+          variant: "destructive",
+        });
+        setIsRecording(false);
+        stopRecording();
+        return;
+      }
+      if (!res.ok) {
+        // Non-fatal: just inform and keep going
+        const errorTxt = await res.text();
+        toast({
+          title: "Transcription Chunk Failed",
+          description: "A chunk failed to transcribe: " + errorTxt,
+          variant: "destructive"
+        });
+        // Don't stop; chunk is lost, move on
+        setProcessing(false);
+        return;
+      }
       const result = await res.json();
       if (result.sessionId) sessionIdRef.current = result.sessionId;
 
@@ -158,13 +208,13 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         onTranscription(result.transcript);
       }
     } catch (err) {
+      // Network error or similar—notify, but don't end session
       toast({
-        title: "Transcription Error",
-        description: "Failed to transcribe audio.",
+        title: "Network Error",
+        description: "Temporary network error while sending audio chunk. Will continue recording.",
         variant: "destructive"
       });
-      setIsRecording(false);
-      stopRecording();
+      // Just skip this chunk/try, keep going
     } finally {
       setProcessing(false);
     }
@@ -211,6 +261,13 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     return out;
   }
 
+  // Elapsed MM:SS formatting
+  const renderDuration = () => {
+    const mins = Math.floor(elapsedSeconds / 60);
+    const secs = elapsedSeconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
   // When isRecording toggles, start or stop logic
   useEffect(() => {
     if (isRecording) {
@@ -221,6 +278,10 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
+      }
+      if (elapsedTimerRef.current) {
+        clearInterval(elapsedTimerRef.current);
+        elapsedTimerRef.current = null;
       }
       if (recBuffersRef.current.length && audioContextRef.current) {
         // Process remaining audio chunk
@@ -235,6 +296,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current);
       if (processorRef.current) processorRef.current.disconnect();
       if (sourceRef.current) sourceRef.current.disconnect();
       if (audioContextRef.current) audioContextRef.current.close();
@@ -268,9 +330,14 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
           </div>
         </div>
         {isRecording && (
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-            <span className="text-white text-sm">Recording in progress...</span>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+              <span className="text-white text-sm">Recording in progress...</span>
+            </div>
+            <span className="text-white font-mono text-xs bg-white/10 px-2 py-1 rounded">
+              {renderDuration()}
+            </span>
           </div>
         )}
         {transcript && (
