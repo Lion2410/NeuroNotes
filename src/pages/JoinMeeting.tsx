@@ -35,11 +35,12 @@ const JoinMeeting = () => {
   const [meetingBotStatus, setMeetingBotStatus] = useState<'idle' | 'starting' | 'success' | 'error'>('idle');
   
   // Virtual audio states
-  const [selectedVirtualDevice, setSelectedVirtualDevice] = useState<VirtualAudioDevice | null>(null);
+  const [selectedVirtualDevice, setSelectedVirtualDevice] = useState<any>(null);
   const [virtualAudioStream, setVirtualAudioStream] = useState<MediaStream | null>(null);
   const [isVirtualAudioActive, setIsVirtualAudioActive] = useState(false);
   const [transcriptSegments, setTranscriptSegments] = useState<TranscriptSegment[]>([]);
-  const [meetingMode, setMeetingMode] = useState<'bot' | 'virtual' | 'audio'>('audio');
+  // MEETING MODE: audio (live capture) or upload
+  const [meetingMode, setMeetingMode] = useState<'audio' | 'upload'>('audio');
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -347,7 +348,7 @@ const JoinMeeting = () => {
     setMeetingBotStatus('starting');
 
     try {
-      // Simulate mode selection/state update, no meeting bot function is called for audio capture mode
+      // Simulate ready state for audio capture setup (no meetingbot function)
       setMeetingBotStatus('success');
       toast({
         title: "Ready for Audio Capture",
@@ -466,10 +467,7 @@ const JoinMeeting = () => {
 
         <Tabs
           value={meetingMode}
-          onValueChange={(val) => {
-            if (val === 'upload') setMeetingMode('upload' as any); // not handled anywhere yet!
-            else setMeetingMode('audio'); // all non-upload is 'audio' for the current modes
-          }}
+          onValueChange={(val) => setMeetingMode(val as 'audio' | 'upload')}
           defaultValue="audio"
           className="w-full"
         >
@@ -493,7 +491,7 @@ const JoinMeeting = () => {
               <CardHeader>
                 <CardTitle className="text-white">Audio Capture Mode</CardTitle>
                 <CardDescription className="text-slate-300">
-                  Use your microphone or a virtual audio device to capture and transcribe audio in real-time. Give your note a descriptive title below before recording.
+                  Use your microphone to capture and transcribe audio in real-time. Give your note a descriptive title below before recording.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -598,24 +596,6 @@ const JoinMeeting = () => {
                 )}
               </CardContent>
             </Card>
-
-            {meetingMode === 'virtual' && (
-              <>
-                <VirtualAudioSetup
-                  onDeviceSelected={handleVirtualDeviceSelected}
-                  onSetupComplete={handleVirtualAudioSetupComplete}
-                />
-                
-                {virtualAudioStream && (
-                  <RealTimeTranscription
-                    audioStream={virtualAudioStream}
-                    onTranscriptUpdate={handleTranscriptUpdate}
-                    isActive={isVirtualAudioActive}
-                    onToggle={toggleVirtualAudioTranscription}
-                  />
-                )}
-              </>
-            )}
           </TabsContent>
 
           <TabsContent value="upload" className="mt-8">
