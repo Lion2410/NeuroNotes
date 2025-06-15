@@ -76,6 +76,8 @@ const JoinMeeting = () => {
     }
   };
 
+  const [microphonePermError, setMicrophonePermError] = useState<string | null>(null);
+
   useEffect(() => {
     return () => {
       // Cleanup on unmount
@@ -129,32 +131,71 @@ const JoinMeeting = () => {
   const startRealTimeTranscription = async () => {
     try {
       setConnectionStatus('connecting');
-      
+      setMicrophonePermError(null);
+
       // Request microphone access
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (mediaErr: any) {
+        let errorMsg = "Failed to access microphone.";
+        let systemMsg = "";
+        if (
+          mediaErr &&
+          (mediaErr.name === "NotAllowedError" ||
+            mediaErr.name === "PermissionDeniedError" ||
+            mediaErr.message?.toLowerCase().includes("denied"))
+        ) {
+          errorMsg = "Microphone permission denied by browser or system. Please check your browser's privacy settings and reload this page, or try a different browser.";
+          setMicrophonePermError(errorMsg);
+          setConnectionStatus('error');
+          toast({
+            title: "Microphone Access Blocked",
+            description: errorMsg,
+            variant: "destructive",
+          });
+          // Do NOT retry when denied by user
+          return;
+        } else {
+          systemMsg =
+            typeof mediaErr === "string"
+              ? mediaErr
+              : mediaErr.message || JSON.stringify(mediaErr);
+          toast({
+            title: "Microphone Error",
+            description: `${errorMsg} Details: ${systemMsg}`,
+            variant: "destructive",
+          });
+          setMicrophonePermError(systemMsg);
+          setConnectionStatus('error');
+          // Could be a transient error, but don't auto-retry, leave to user
+          return;
+        }
+      }
+
       // Create MediaRecorder
       mediaRecorderRef.current = new MediaRecorder(stream, {
         mimeType: 'audio/webm;codecs=opus'
       });
 
-      // Setup WebSocket connection with correct URL
+      // Setup WebSocket connection
       wsRef.current = new WebSocket(supabaseWSURL);
-      
+
       wsRef.current.onopen = () => {
         setIsConnected(true);
         setConnectionStatus('connected');
         toast({
           title: "Connected",
-          description: "Real-time transcription started."
+          description: "Real-time transcription started.",
         });
+        console.log("WebSocket connection established");
       };
 
       wsRef.current.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           console.log('WebSocket message received:', data);
-          
+
           if (data.type === 'transcript' && data.transcript) {
             setLiveTranscript(prev => prev + ' ' + data.transcript);
           } else if (data.type === 'connection' && data.status === 'connected') {
@@ -173,35 +214,37 @@ const JoinMeeting = () => {
       };
 
       wsRef.current.onerror = (error) => {
+        // Prevent auto-reconnecting for permission issues; allow user to manually retry
         console.error('WebSocket error:', error);
         setConnectionStatus('error');
         setIsConnected(false);
-        toast({
-          title: "Connection Error",
-          description: "Failed to connect to transcription service. Retrying in 3s...",
-          variant: "destructive"
-        });
-        // Retry logic
+
+        if (!microphonePermError) {
+          toast({
+            title: "Connection Error",
+            description: "Failed to connect to transcription service. Please check your network and Deepgram API Key, then retry.",
+            variant: "destructive"
+          });
+        }
         if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = setTimeout(() => {
-          startRealTimeTranscription();
-        }, 3000);
+        // No retry; let user manually retry
       };
 
       wsRef.current.onclose = (event) => {
         console.log('WebSocket closed:', event.code, event.reason);
         setIsConnected(false);
         setConnectionStatus('idle');
-        // Retry only if error code and still recording
-        if (event.code !== 1000 && isRecording) {
+        // Only try to reconnect if not a permission error and was recording
+        if (
+          event.code !== 1000 &&
+          isRecording &&
+          !microphonePermError
+        ) {
           toast({
             title: "Lost Connection",
-            description: "Reconnecting in 3s...",
+            description: "WebSocket disconnected. Click Retry Connection below.",
             variant: "destructive"
           });
-          reconnectTimeoutRef.current = setTimeout(() => {
-            startRealTimeTranscription();
-          }, 3000);
         }
       };
 
@@ -229,15 +272,34 @@ const JoinMeeting = () => {
       // Start recording
       mediaRecorderRef.current.start(1000); // Send data every second
       setIsRecording(true);
-
     } catch (error: any) {
       setConnectionStatus('error');
-      console.error('Microphone or WebSocket error:', error);
-      toast({
-        title: "Setup Error",
-        description: error.message || "Failed to access microphone or connect to transcription service. Please check permissions.",
-        variant: "destructive"
-      });
+      setIsConnected(false);
+      let errorMessage = error?.message || "Failed to access microphone or connect to transcription service.";
+      if (
+        error?.name === "NotAllowedError" ||
+        error?.name === "PermissionDeniedError" ||
+        errorMessage.toLowerCase().includes("denied")
+      ) {
+        errorMessage = "Microphone permission denied by browser or system. Please check your browser's privacy settings and reload this page, or try a different browser.";
+        setMicrophonePermError(errorMessage);
+        toast({
+          title: "Microphone Access Blocked",
+          description: errorMessage,
+          variant: "destructive"
+        });
+        // Don't retry
+        return;
+      } else {
+        toast({
+          title: "Setup Error",
+          description: errorMessage,
+          variant: "destructive"
+        });
+        setMicrophonePermError(errorMessage);
+        // Don't retry; let user decide
+        return;
+      }
     }
   };
 
@@ -260,6 +322,7 @@ const JoinMeeting = () => {
       setTranscriptionResults(prev => [...prev, liveTranscript.trim()]);
       setLiveTranscript('');
     }
+    setMicrophonePermError(null);
   };
 
   const handleFileUpload = async (e: React.FormEvent) => {
@@ -549,7 +612,7 @@ const JoinMeeting = () => {
                         type="button"
                         onClick={startRealTimeTranscription}
                         className={`bg-green-600 hover:bg-green-700`}
-                        disabled={loading || !audioCaptureTitle.trim()}
+                        disabled={loading || !audioCaptureTitle.trim() || !!microphonePermError}
                       >
                         <Mic className="h-4 w-4 mr-2" />
                         Start Recording
@@ -566,6 +629,21 @@ const JoinMeeting = () => {
                     )}
                   </div>
                 </form>
+                {/* Show microphone permission error if present */}
+                {microphonePermError && (
+                  <div className="mt-4 bg-red-900/40 border border-red-400 text-white p-3 rounded flex items-center gap-3">
+                    <AlertCircle className="h-5 w-5 text-red-400" />
+                    <div>
+                      <b>Microphone Access Denied:</b>
+                      <div className="mt-1 text-sm">
+                        {microphonePermError}
+                        <p className="mt-2 text-yellow-200">To re-enable, check your browser's address bar for a blocked camera/mic icon and allow access, then reload this page. <br />
+                        On Chrome: Click the lock icon → Site settings → Allow Microphone, then reload.<br />
+                        If the problem persists, try another browser.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {/* Live Transcript Display */}
                 {(isRecording || liveTranscript) && (
                   <div className="mt-6">
@@ -578,7 +656,7 @@ const JoinMeeting = () => {
                   </div>
                 )}
                 {/* ADDED: Manual reconnect button if error */}
-                {connectionStatus === 'error' && (
+                {connectionStatus === 'error' && !microphonePermError && (
                   <div className="mt-4 flex items-center gap-2">
                     <Button
                       type="button"
