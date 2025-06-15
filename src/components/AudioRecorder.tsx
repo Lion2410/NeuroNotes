@@ -98,7 +98,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       visualize();
 
       console.log("Initializing MediaRecorder...");
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm' });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus' : '') });
       mediaRecorderRef.current = mediaRecorder;
       console.log("MediaRecorder initialized.");
 
@@ -133,6 +133,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   }, [setIsRecording, toast]);
 
   const handleChunk = async (chunk: Blob) => {
+    console.log("Chunk received, size:", chunk.size, "type:", chunk.type);
     setProcessing(true);
 
     const formData = new FormData();
