@@ -97,10 +97,15 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       };
       visualize();
 
+      console.log("Checking MIME types:", {
+        mp3: MediaRecorder.isTypeSupported('audio/mp3'),
+        webm: MediaRecorder.isTypeSupported('audio/webm'),
+        wav: MediaRecorder.isTypeSupported('audio/wav')
+      });
       console.log("Initializing MediaRecorder...");
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/mp3') ? 'audio/mp3' : '' });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/mp3') ? 'audio/mp3' : (MediaRecorder.isTypeSupported('audio/wav') ? 'audio/wav' : '') });
       mediaRecorderRef.current = mediaRecorder;
-      console.log("MediaRecorder initialized.");
+      console.log("MediaRecorder initialized, mimeType:", mediaRecorder.mimeType);
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
