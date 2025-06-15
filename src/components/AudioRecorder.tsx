@@ -19,7 +19,7 @@ interface AudioRecorderProps {
   setIsRecording: (recording: boolean) => void;
 }
 
-const supabaseWSURL = 'https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio-realtime';
+const supabaseTranscribeURL = 'https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio';
 const CHUNK_SECONDS = 10;
 const PCM_SAMPLE_RATE = 24000;
 
@@ -216,18 +216,20 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     // Prepare formData
     const formData = new FormData();
     formData.append('audio', new Blob([pcmData], { type: 'audio/raw' }), 'audio.pcm');
-    formData.append('mode', 'microphone');
-    if (sessionIdRef.current) formData.append('sessionId', sessionIdRef.current);
-    if (user?.id) formData.append('deviceLabel', 'microphone');
+    // This endpoint doesn't require 'mode', 'deviceLabel' or sessionId (but keep them if you want for future use, or remove for minimal)
+    // We'll keep only 'audio' since /transcribe-audio only needs this
+    // Remove: mode, sessionId, deviceLabel
 
     // Auth
     let accessToken = '';
     if (session && session.access_token) accessToken = session.access_token;
 
     try {
-      const res = await fetch(supabaseWSURL, {
+      const res = await fetch(supabaseTranscribeURL, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${accessToken}` },
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        },
         body: formData
       });
       if (res.status === 401 || res.status === 403) {
@@ -243,19 +245,12 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         return;
       }
       const result = await res.json();
-      if (result.sessionId) sessionIdRef.current = result.sessionId;
 
-      if (result.speakerSegments && Array.isArray(result.speakerSegments)) {
-        fullSpeakerSegmentsRef.current = [
-          ...fullSpeakerSegmentsRef.current,
-          ...(result.speakerSegments as SpeakerSegment[])
-        ];
-        setSegments([...fullSpeakerSegmentsRef.current]);
-        const transText = (result.speakerSegments as SpeakerSegment[])
-          .map(seg => `[${seg.speaker}]: ${seg.text}`).join('\n');
-        setTranscript(prev => prev + (transText ? '\n' + transText : ''));
-        onTranscription(transText);
-      } else if (result.transcript) {
+      // Flat transcript and words; speakerSegments not available here
+      if (result.words && Array.isArray(result.words)) {
+        // Optionally parse word segments if needed in the future
+      }
+      if (result.transcript) {
         setTranscript(prev => prev + (result.transcript ? '\n' + result.transcript : ''));
         onTranscription(result.transcript);
       }
