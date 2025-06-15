@@ -1,3 +1,4 @@
+
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Mic, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,7 +20,6 @@ interface AudioRecorderProps {
 }
 
 const supabaseWSURL = 'https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio-realtime';
-
 const CHUNK_SECONDS = 10;
 const PCM_SAMPLE_RATE = 24000;
 
@@ -35,55 +35,44 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   const [transcript, setTranscript] = useState('');
   const [segments, setSegments] = useState<SpeakerSegment[]>([]);
   const [processing, setProcessing] = useState(false);
-
-  // duration state
   const [recordingStart, setRecordingStart] = useState<Date | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  // references
+  // Refs for everything requiring persistence
   const audioContextRef = useRef<AudioContext | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const processorRef = useRef<ScriptProcessorNode | null>(null);
-  const timerRef = useRef<number | null>(null); // handles chunking
-  const elapsedTimerRef = useRef<number | null>(null); // handles duration
+  const timerRef = useRef<number | null>(null);
+  const elapsedTimerRef = useRef<number | null>(null);
   const recBuffersRef = useRef<Float32Array[]>([]);
   const sessionIdRef = useRef<string | null>(null);
-
   const fullSpeakerSegmentsRef = useRef<SpeakerSegment[]>([]);
 
-  // Cleanup and finalize
+  // Stop logic
   const stopRecording = useCallback(() => {
     setIsRecording(false);
     setProcessing(false);
 
-    // Stop everything
-    if (processorRef.current) processorRef.current.disconnect();
+    // Stop all nodes and tracks
+    if (processorRef.current) { processorRef.current.disconnect(); processorRef.current.onaudioprocess = null; }
     if (sourceRef.current) sourceRef.current.disconnect();
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-    }
+    if (audioContextRef.current) { audioContextRef.current.close(); audioContextRef.current = null; }
+    if (streamRef.current) { streamRef.current.getTracks().forEach(tr => tr.stop()); streamRef.current = null; }
 
-    // Stop duration timer
-    if (elapsedTimerRef.current) {
-      clearInterval(elapsedTimerRef.current);
-      elapsedTimerRef.current = null;
-    }
-
+    // Timers off
+    if (elapsedTimerRef.current) { clearInterval(elapsedTimerRef.current); elapsedTimerRef.current = null; }
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     setElapsedSeconds(0);
     setRecordingStart(null);
 
     // Finalize transcript
-    const transcriptText = fullSpeakerSegmentsRef.current
-      .map(seg => `[${seg.speaker}]: ${seg.text}`)
-      .join('\n');
+    const transcriptText = fullSpeakerSegmentsRef.current.map(seg => `[${seg.speaker}]: ${seg.text}`).join('\n');
     onFinalized(transcriptText, [...fullSpeakerSegmentsRef.current]);
-    toast({
-      title: "Recording Stopped",
-      description: "Transcription finalized and ready.",
-    });
+    toast({ title: "Recording Stopped", description: "Transcription finalized and ready." });
   }, [onFinalized, setIsRecording, toast]);
 
-  // Start Recording
+  // Start logic
   const startRecording = useCallback(async () => {
     setTranscript('');
     setSegments([]);
@@ -92,13 +81,14 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     sessionIdRef.current = null;
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Always use system default microphone
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: PCM_SAMPLE_RATE } });
+      streamRef.current = stream;
+      // Always force new AudioContext for sample rate
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: PCM_SAMPLE_RATE });
       audioContextRef.current = audioContext;
-
       const source = audioContext.createMediaStreamSource(stream);
       sourceRef.current = source;
-
       const processor = audioContext.createScriptProcessor(4096, 1, 1);
       processorRef.current = processor;
       source.connect(processor);
@@ -109,18 +99,19 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
       processor.onaudioprocess = (event) => {
         const input = event.inputBuffer.getChannelData(0);
-        // Accumulate raw audio data
+        // If all zeros, warn; for debugging actual silence!
+        const zeroed = input.every(v => v === 0);
+        if (zeroed) {
+          console.warn('[WARN] Recording buffer is all zero! Microphone muted or browser permission bug?');
+        }
         recBuffersRef.current.push(new Float32Array(input));
       };
 
       // Set recording start time and begin duration timer
-      const now = new Date();
-      setRecordingStart(now);
+      setRecordingStart(new Date());
       setElapsedSeconds(0);
       if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current);
-      elapsedTimerRef.current = window.setInterval(() => {
-        setElapsedSeconds(prev => prev + 1);
-      }, 1000);
+      elapsedTimerRef.current = window.setInterval(() => setElapsedSeconds(prev => prev + 1), 1000);
 
       setIsRecording(true);
       toast({
@@ -138,7 +129,28 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     }
   }, [setIsRecording, toast]);
 
-  // Helper: flatten array of Float32 arrays to 1D Float32Array
+  // PCM conversion: always little-endian, always int16, always logs
+  function float32ToPCM16(floatBuf: Float32Array): Uint8Array {
+    const out = new Uint8Array(floatBuf.length * 2);
+    const view = new DataView(out.buffer);
+    for (let i = 0; i < floatBuf.length; i++) {
+      let s = Math.max(-1, Math.min(1, floatBuf[i]));
+      const sample = s < 0 ? s * 32768 : s * 32767;
+      view.setInt16(i * 2, sample, true);
+    }
+    // Logging
+    const example = Array.from(out.slice(0, 16));
+    const nonzero = out.some(b => b !== 0);
+    if (!nonzero) {
+      console.warn('[PCM16] WARNING: All zero PCM16 chunk! Audio lost or silence.');
+    }
+    // Log base64 for further troubleshooting only first 32 bytes
+    const b64 = btoa(String.fromCharCode(...out.slice(0, 32)));
+    console.log('[PCM16] Length:', out.length, 'First 16 bytes:', example, 'Base64(32B):', b64);
+    return out;
+  }
+
+  // flatten buffers with copy to new buffer
   function flattenBuffers(buffers: Float32Array[]) {
     const len = buffers.reduce((sum, arr) => sum + arr.length, 0);
     const result = new Float32Array(len);
@@ -150,7 +162,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     return result;
   }
 
-  // Enhanced: Resample & PCM16
+  // Proper 24kHz PCM16 resampling: use offline context if needed
   async function toPCMBuffer(floatBuf: Float32Array, originalSampleRate: number): Promise<Uint8Array> {
     if (originalSampleRate === PCM_SAMPLE_RATE) return float32ToPCM16(floatBuf);
     const frames = Math.ceil(floatBuf.length * PCM_SAMPLE_RATE / originalSampleRate);
@@ -166,25 +178,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     return float32ToPCM16(resampled);
   }
 
-  // Enhanced: True PCM16 conversion with logging
-  function float32ToPCM16(floatBuf: Float32Array): Uint8Array {
-    const out = new Uint8Array(floatBuf.length * 2);
-    const view = new DataView(out.buffer);
-    for (let i = 0; i < floatBuf.length; i++) {
-      let s = Math.max(-1, Math.min(1, floatBuf[i]));
-      // Apply correct scaling and conversion to int16
-      const sample = s < 0 ? s * 32768 : s * 32767;
-      view.setInt16(i * 2, sample, true); // little-endian
-    }
-    // Log first few bytes, length and type for debugging
-    console.log('[PCM16] Length:', out.length, 'First 16 bytes:', Array.from(out.slice(0,16)));
-    // Also log Base64 for diagnostics
-    const b64 = btoa(String.fromCharCode(...out.slice(0,64)));
-    console.log('[PCM16] Base64 first 64B:', b64);
-    return out;
-  }
-
-  // Convert & send chunk to edge func
+  // Chunking logic: always sends real PCM16 data (never empty chunk)
   const handleChunk = async (sampleRate: number) => {
     if (!recBuffersRef.current.length) return;
     setProcessing(true);
@@ -192,51 +186,39 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     recBuffersRef.current = [];
     const pcmData = await toPCMBuffer(floatBuf, sampleRate);
 
-    // Log prior to sending
-    console.log('[AudioRecorder] PCM chunk size:', pcmData.length, 'First bytes:', Array.from(pcmData.slice(0,16)));
+    // Log summary
+    const isZero = pcmData.every(x => x === 0);
+    console.log('[AudioRecorder] PCM chunk size:', pcmData.length, 'First bytes:', Array.from(pcmData.slice(0, 16)), 'All zero:', isZero);
 
+    if (isZero) {
+      console.error('[AudioRecorder] ERROR: Buffered chunk is all zero. Microphone silent or disconnected?');
+    }
+    // Prepare formData
     const formData = new FormData();
-    // NOTE: must be audio/raw with no header!
     formData.append('audio', new Blob([pcmData], { type: 'audio/raw' }), 'audio.pcm');
     formData.append('mode', 'microphone');
     if (sessionIdRef.current) formData.append('sessionId', sessionIdRef.current);
     if (user?.id) formData.append('deviceLabel', 'microphone');
 
-    // Get freshest auth token from Supabase session
+    // Auth
     let accessToken = '';
-    if (session && session.access_token) {
-      accessToken = session.access_token;
-    }
+    if (session && session.access_token) accessToken = session.access_token;
 
     try {
       const res = await fetch(supabaseWSURL, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-        },
+        headers: { 'Authorization': `Bearer ${accessToken}` },
         body: formData
       });
-
       if (res.status === 401 || res.status === 403) {
-        // Fatal: lose auth, must stop
-        toast({
-          title: "Authentication Error",
-          description: "Your session has expired or is invalid. Please sign in again.",
-          variant: "destructive",
-        });
+        toast({ title: "Authentication Error", description: "Session expired. Please sign in again.", variant: "destructive" });
         setIsRecording(false);
         stopRecording();
         return;
       }
       if (!res.ok) {
-        // Non-fatal: just inform and keep going
         const errorTxt = await res.text();
-        toast({
-          title: "Transcription Chunk Failed",
-          description: "A chunk failed to transcribe: " + errorTxt,
-          variant: "destructive"
-        });
-        // Don't stop; chunk is lost, move on
+        toast({ title: "Transcription Chunk Failed", description: "A chunk failed to transcribe: " + errorTxt, variant: "destructive" });
         setProcessing(false);
         return;
       }
@@ -258,13 +240,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         onTranscription(result.transcript);
       }
     } catch (err) {
-      // Network error or similar—notify, but don't end session
-      toast({
-        title: "Network Error",
-        description: "Temporary network error while sending audio chunk. Will continue recording.",
-        variant: "destructive"
-      });
-      // Just skip this chunk/try, keep going
+      toast({ title: "Network Error", description: "Network error while sending audio chunk.", variant: "destructive" });
     } finally {
       setProcessing(false);
     }
@@ -277,23 +253,15 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // When isRecording toggles, start or stop logic
+  // Effect: when isRecording toggles, start/stop logic
   useEffect(() => {
     if (isRecording) {
       startRecording();
       return () => {};
     } else {
-      // Stop everything, flush remaining buffer
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      if (elapsedTimerRef.current) {
-        clearInterval(elapsedTimerRef.current);
-        elapsedTimerRef.current = null;
-      }
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      if (elapsedTimerRef.current) { clearInterval(elapsedTimerRef.current); elapsedTimerRef.current = null; }
       if (recBuffersRef.current.length && audioContextRef.current) {
-        // Process remaining audio chunk
         handleChunk(audioContextRef.current.sampleRate);
       }
       stopRecording();
@@ -309,6 +277,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       if (processorRef.current) processorRef.current.disconnect();
       if (sourceRef.current) sourceRef.current.disconnect();
       if (audioContextRef.current) audioContextRef.current.close();
+      if (streamRef.current) streamRef.current.getTracks().forEach(tr => tr.stop());
     };
   }, []);
 
