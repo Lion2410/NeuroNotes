@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Recycle, Delete, Clock, Download, Share, FileText, Plus, Search } from 'lucide-react';
+import { Recycle, Delete, Clock, Download, Share, FileText, Plus, Search, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
@@ -325,9 +325,9 @@ const Notes: React.FC = () => {
                 size="lg"
                 className="rounded-full bg-red-600 hover:bg-red-700 shadow-lg text-white px-0 py-0 h-14 w-14 flex items-center justify-center"
                 onClick={() => setMassDeleteOpen(true)}
-                aria-label="Recycle bin"
+                aria-label="Trash bin"
               >
-                <Recycle className="h-7 w-7" />
+                <Trash2 className="h-7 w-7" />
               </Button>
             </div>
             {/* Dialog rendered, controlled by massDeleteOpen */}

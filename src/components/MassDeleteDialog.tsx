@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -93,56 +92,81 @@ const MassDeleteDialog: React.FC<MassDeleteDialogProps> = ({
           </Button>
         </DialogTrigger>
       )}
-      <DialogContent className="bg-gray-900 border-gray-700 max-w-2xl max-h-[80vh] overflow-y-auto" aria-describedby="mass-delete-description">
+      <DialogContent 
+        className="bg-gray-950 border-gray-800 max-w-md w-full sm:max-w-lg p-4 sm:p-5 rounded-xl shadow-xl space-y-3"
+        aria-describedby="mass-delete-description"
+      >
         <DialogHeader>
-          <DialogTitle className="text-white">Delete Multiple Notes</DialogTitle>
+          <DialogTitle className="text-white text-lg sm:text-xl font-semibold mb-1">
+            Delete Multiple Notes
+          </DialogTitle>
         </DialogHeader>
         {/* Description for accessibility */}
         <div id="mass-delete-description" className="sr-only">
           Select notes to delete. Deleted notes cannot be recovered.
         </div>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Button onClick={handleSelectAll} variant="outline" size="sm" className="border-gray-600/50 hover:bg-gray-800/50 text-slate-950">
-              {selectedNotes.size === notes.length ? 'Deselect All' : 'Select All'}
-            </Button>
-            <span className="text-gray-400 text-sm">
-              {selectedNotes.size} of {notes.length} selected
-            </span>
-          </div>
+        <div className="flex items-center justify-between mb-1">
+          <Button
+            onClick={handleSelectAll}
+            variant="outline"
+            size="sm"
+            className="border-gray-700 hover:bg-gray-900 text-slate-950 dark:text-gray-100 px-3"
+          >
+            {selectedNotes.size === notes.length ? 'Deselect All' : 'Select All'}
+          </Button>
+          <span className="text-gray-400 text-xs sm:text-sm">
+            {selectedNotes.size} of {notes.length} selected
+          </span>
+        </div>
 
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {notes.map(note => (
-              <div key={note.id} className="flex items-center space-x-3 p-3 bg-gray-800/50 rounded-lg hover:bg-gray-800/70 transition-colors">
-                <Checkbox checked={selectedNotes.has(note.id)} onCheckedChange={() => handleSelectNote(note.id)} />
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-white font-medium truncate">{note.title}</h4>
-                  <p className="text-gray-400 text-sm">
-                    {new Date(note.created_at).toLocaleDateString()} • {note.source_type}
-                  </p>
-                </div>
+        <div className="space-y-1 max-h-[42vh] min-h-[2rem] overflow-y-auto px-1">
+          {notes.map(note => (
+            <div
+              key={note.id}
+              className="flex items-center gap-2 p-2 rounded-md hover:bg-gray-900/60 transition"
+            >
+              <Checkbox
+                checked={selectedNotes.has(note.id)}
+                onCheckedChange={() => handleSelectNote(note.id)}
+                className="scale-90"
+              />
+              <div className="flex-1 min-w-0 overflow-hidden">
+                <h4 className="text-white text-xs font-semibold truncate">{note.title}</h4>
+                <p className="text-gray-400 text-[11px] truncate">
+                  {new Date(note.created_at).toLocaleDateString()} &bull; {note.source_type}
+                </p>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
+        </div>
 
-          <div className="flex gap-3 pt-4 border-t border-gray-700">
-            <Button onClick={handleMassDelete} disabled={selectedNotes.size === 0 || isDeleting} variant="destructive" className="flex-1 bg-red-600 hover:bg-red-700">
-              {isDeleting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                <>
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete {selectedNotes.size} Note(s)
-                </>
-              )}
-            </Button>
-            <Button onClick={() => setIsOpen(false)} variant="outline" className="border-gray-600/50 hover:bg-gray-800/50 text-gray-300 hover:text-white">
-              Cancel
-            </Button>
-          </div>
+        <div className="flex gap-2 pt-2 border-t border-gray-800">
+          <Button
+            onClick={handleMassDelete}
+            disabled={selectedNotes.size === 0 || isDeleting}
+            variant="destructive"
+            className="flex-1 bg-red-600 hover:bg-red-700 py-2 text-sm"
+          >
+            {isDeleting ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Deleting...
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete {selectedNotes.size} 
+                {selectedNotes.size === 1 ? ' Note' : ' Notes'}
+              </>
+            )}
+          </Button>
+          <Button
+            onClick={() => setIsOpen(false)}
+            variant="outline"
+            className="border-gray-700 hover:bg-gray-900 text-gray-300 hover:text-white flex-1 py-2 text-sm"
+          >
+            Cancel
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
