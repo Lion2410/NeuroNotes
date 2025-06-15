@@ -181,9 +181,9 @@ const Notes: React.FC = () => {
           }
         />
 
-        <div className="container mx-auto px-6 py-8">
+        <div className="container mx-auto px-3 sm:px-6 py-6 sm:py-8">
           {/* Search Section */}
-          <div className="mb-8">
+          <div className="mb-6 sm:mb-8">
             <div className="relative max-w-md">
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white/70 h-5 w-5" />
               <Input
@@ -223,15 +223,36 @@ const Notes: React.FC = () => {
               )}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div
+              className="
+                grid grid-cols-1 
+                sm:grid-cols-2 
+                lg:grid-cols-3 
+                xl:grid-cols-4 
+                gap-2 sm:gap-4
+              "
+            >
               {notes.map((note) => (
                 <Card 
-                  key={note.id} 
-                  className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15 transition-all duration-200 rounded-2xl overflow-hidden cursor-pointer group"
+                  key={note.id}
+                  className="
+                    bg-white/10 
+                    backdrop-blur-md 
+                    border-white/20 
+                    hover:bg-white/15 
+                    transition-all duration-200 
+                    rounded-xl sm:rounded-2xl 
+                    overflow-hidden cursor-pointer group
+                    p-2 sm:p-0
+                  "
                   onClick={() => handleNoteClick(note.id)}
                 >
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
+                  <CardContent
+                    className="
+                      p-2 sm:p-4
+                    "
+                  >
+                    <div className="space-y-2 sm:space-y-3">
                       {/* Header with badge and duration */}
                       <div className="flex items-center justify-between">
                         <Badge 
@@ -241,7 +262,7 @@ const Notes: React.FC = () => {
                           {note.source_type === 'upload' ? 'Upload' : note.source_type}
                         </Badge>
                         {note.duration && (
-                          <div className="flex items-center gap-1 text-white/70 text-xs">
+                          <div className="flex items-center gap-1 text-white/70 text-[11px] sm:text-xs">
                             <Clock className="h-3 w-3" />
                             <span>{formatDuration(note.duration)}</span>
                           </div>
@@ -249,20 +270,20 @@ const Notes: React.FC = () => {
                       </div>
                       
                       {/* Title */}
-                      <h3 className="text-lg font-semibold text-white line-clamp-2 min-h-[2.5rem]">
+                      <h3 className="text-base sm:text-lg font-semibold text-white line-clamp-2 min-h-[2rem] sm:min-h-[2.5rem]">
                         {note.title}
                       </h3>
                       
                       {/* Content preview */}
                       {(note.content || note.summary) && (
-                        <p className="text-white/80 text-sm line-clamp-3 min-h-[3.75rem]">
+                        <p className="text-xs sm:text-sm text-white/80 line-clamp-3 min-h-[2.5rem] sm:min-h-[3.75rem]">
                           {note.summary || (note.content && note.content.substring(0, 80) + '...')}
                         </p>
                       )}
                       
                       {/* Footer with date and actions */}
-                      <div className="flex items-center justify-between pt-2">
-                        <div className="flex items-center gap-1 text-white/70 text-xs">
+                      <div className="flex items-center justify-between pt-1 sm:pt-2">
+                        <div className="flex items-center gap-1 text-white/70 text-[11px] sm:text-xs">
                           <Clock className="h-3 w-3" />
                           <span>{formatDate(note.created_at)}</span>
                         </div>
@@ -271,7 +292,7 @@ const Notes: React.FC = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-white/70 hover:text-white hover:bg-white/10 h-8 w-8 p-0"
+                            className="text-white/70 hover:text-white hover:bg-white/10 h-7 w-7 sm:h-8 sm:w-8 p-0"
                             onClick={(e) => {
                               e.stopPropagation();
                               // Handle export
@@ -282,7 +303,7 @@ const Notes: React.FC = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-white/70 hover:text-white hover:bg-white/10 h-8 w-8 p-0"
+                            className="text-white/70 hover:text-white hover:bg-white/10 h-7 w-7 sm:h-8 sm:w-8 p-0"
                             onClick={(e) => {
                               e.stopPropagation();
                               // Handle share
