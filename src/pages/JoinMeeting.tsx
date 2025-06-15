@@ -15,6 +15,7 @@ import RealTimeTranscription from '@/components/RealTimeTranscription';
 import { VirtualAudioDevice } from '@/utils/VirtualAudioDriver';
 import AudioRecorder from '@/components/AudioRecorder';
 import { useChunkedTranscription, ChunkTranscript } from "@/hooks/useChunkedTranscription";
+import { Badge } from '@/components/ui/badge';
 
 interface TranscriptSegment {
   id: string;
