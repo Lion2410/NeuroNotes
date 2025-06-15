@@ -39,7 +39,7 @@ const JoinMeeting = () => {
   const [virtualAudioStream, setVirtualAudioStream] = useState<MediaStream | null>(null);
   const [isVirtualAudioActive, setIsVirtualAudioActive] = useState(false);
   const [transcriptSegments, setTranscriptSegments] = useState<TranscriptSegment[]>([]);
-  const [meetingMode, setMeetingMode] = useState<'bot' | 'virtual'>('bot');
+  const [meetingMode, setMeetingMode] = useState<'bot' | 'virtual' | 'audio'>('audio');
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -387,13 +387,13 @@ const JoinMeeting = () => {
         .insert({
           user_id: user.id,
           title:
-            meetingMode === 'audio' // The new mode
+            meetingMode === 'audio'
               ? audioCaptureTitle
               : selectedFile?.name || selectedVirtualDevice?.label || 'Live Meeting Transcription',
           content: transcriptToSave,
           source_type: selectedFile ? 'upload' : meetingMode === 'audio' ? 'audio_capture' : 'meeting',
           audio_url: null,
-          meeting_url: null, // meetingUrl removed for audio capture
+          meeting_url: null,
           duration: null
         });
 
@@ -464,17 +464,31 @@ const JoinMeeting = () => {
           <p className="text-xl text-slate-300">Capture audio live or upload recorded audio for transcription</p>
         </div>
 
-        <Tabs defaultValue="meeting" className="w-full">
+        <Tabs
+          value={meetingMode}
+          onValueChange={(val) => {
+            if (val === 'upload') setMeetingMode('upload' as any); // not handled anywhere yet!
+            else setMeetingMode('audio'); // all non-upload is 'audio' for the current modes
+          }}
+          defaultValue="audio"
+          className="w-full"
+        >
           <TabsList className="grid w-full grid-cols-2 bg-white/10 border-white/20">
-            <TabsTrigger value="meeting" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
+            <TabsTrigger
+              value="audio"
+              className="data-[state=active]:bg-purple-600 data-[state=active]:text-white"
+            >
               Audio Capture Mode
             </TabsTrigger>
-            <TabsTrigger value="upload" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
+            <TabsTrigger
+              value="upload"
+              className="data-[state=active]:bg-purple-600 data-[state=active]:text-white"
+            >
               Upload Audio
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="meeting" className="mt-8 space-y-6">
+          <TabsContent value="audio" className="mt-8 space-y-6">
             <Card className="bg-white/10 backdrop-blur-md border-white/20">
               <CardHeader>
                 <CardTitle className="text-white">Audio Capture Mode</CardTitle>
