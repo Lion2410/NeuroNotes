@@ -23,8 +23,6 @@ interface TranscriptSegment {
 }
 
 const JoinMeeting = () => {
-  const [meetingUrl, setMeetingUrl] = useState('');
-  const [loading, setLoading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [transcriptionResults, setTranscriptionResults] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -32,7 +30,7 @@ const JoinMeeting = () => {
   const [liveTranscript, setLiveTranscript] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
-  const [meetingBotStatus, setMeetingBotStatus] = useState<'idle' | 'starting' | 'success' | 'error'>('idle');
+  const [loading, setLoading] = useState(false);
   
   // Virtual audio states
   const [selectedVirtualDevice, setSelectedVirtualDevice] = useState<any>(null);
@@ -40,7 +38,7 @@ const JoinMeeting = () => {
   const [isVirtualAudioActive, setIsVirtualAudioActive] = useState(false);
   const [transcriptSegments, setTranscriptSegments] = useState<TranscriptSegment[]>([]);
   // MEETING MODE: audio (live capture) or upload
-  const [meetingMode, setMeetingMode] = useState<'audio' | 'upload'>('audio');
+  const [meetingMode, setMeetingMode] = useState<'audio' | 'virtual' | 'upload'>('audio');
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -97,48 +95,6 @@ const JoinMeeting = () => {
 
   const toggleVirtualAudioTranscription = () => {
     setIsVirtualAudioActive(!isVirtualAudioActive);
-  };
-
-  const handleJoinMeeting = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!meetingUrl.trim()) {
-      toast({
-        title: "Meeting URL Required",
-        description: "Please enter a valid meeting URL",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    setLoading(true);
-    setMeetingBotStatus('starting');
-    
-    try {
-      // Call the meeting bot function
-      const { data, error } = await supabase.functions.invoke('meeting-bot', {
-        body: { meetingUrl }
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      setMeetingBotStatus('success');
-      toast({
-        title: "Meeting Bot Started",
-        description: "The bot is joining the meeting and will start transcribing."
-      });
-
-    } catch (error: any) {
-      setMeetingBotStatus('error');
-      toast({
-        title: "Meeting Bot Failed",
-        description: error.message || "Failed to start meeting bot. Please check the meeting URL and try again.",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
   };
 
   const startRealTimeTranscription = async () => {
@@ -345,17 +301,14 @@ const JoinMeeting = () => {
       return;
     }
     setLoading(true);
-    setMeetingBotStatus('starting');
 
     try {
       // Simulate ready state for audio capture setup (no meetingbot function)
-      setMeetingBotStatus('success');
       toast({
         title: "Ready for Audio Capture",
         description: "Click Start Recording to begin capturing and transcribing audio."
       });
     } catch (error: any) {
-      setMeetingBotStatus('error');
       toast({
         title: "Audio Capture Failed",
         description: error.message || "Failed to initialize audio capture.",
@@ -411,8 +364,7 @@ const JoinMeeting = () => {
       setTranscriptSegments([]);
       setSelectedFile(null);
       setAudioCaptureTitle('');
-      setMeetingUrl('');
-      setMeetingBotStatus('idle');
+      setMeetingMode('audio');
     } catch (error: any) {
       toast({
         title: "Save Failed",
@@ -462,21 +414,27 @@ const JoinMeeting = () => {
       <div className="max-w-4xl mx-auto px-6 py-12">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-white mb-4">Start Transcription</h1>
-          <p className="text-xl text-slate-300">Capture audio live or upload recorded audio for transcription</p>
+          <p className="text-xl text-slate-300">Capture audio live (microphone or virtual) or upload audio for transcription</p>
         </div>
 
         <Tabs
           value={meetingMode}
-          onValueChange={(val) => setMeetingMode(val as 'audio' | 'upload')}
+          onValueChange={(val) => setMeetingMode(val as 'audio' | 'virtual' | 'upload')}
           defaultValue="audio"
           className="w-full"
         >
-          <TabsList className="grid w-full grid-cols-2 bg-white/10 border-white/20">
+          <TabsList className="grid w-full grid-cols-3 bg-white/10 border-white/20">
             <TabsTrigger
               value="audio"
               className="data-[state=active]:bg-purple-600 data-[state=active]:text-white"
             >
-              Audio Capture Mode
+              Audio Capture
+            </TabsTrigger>
+            <TabsTrigger
+              value="virtual"
+              className="data-[state=active]:bg-purple-600 data-[state=active]:text-white"
+            >
+              Virtual Audio
             </TabsTrigger>
             <TabsTrigger
               value="upload"
@@ -486,6 +444,7 @@ const JoinMeeting = () => {
             </TabsTrigger>
           </TabsList>
 
+          {/* Audio Capture Mode */}
           <TabsContent value="audio" className="mt-8 space-y-6">
             <Card className="bg-white/10 backdrop-blur-md border-white/20">
               <CardHeader>
@@ -517,12 +476,7 @@ const JoinMeeting = () => {
                       disabled={loading || !audioCaptureTitle.trim()}
                       className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
                     >
-                      {loading ? (
-                        <div className="flex items-center gap-2">
-                          {getStatusIcon(meetingBotStatus)}
-                          Initializing...
-                        </div>
-                      ) : (
+                      {loading ? "Initializing..." : (
                         <>
                           <Play className="h-4 w-4 mr-2" />
                           Ready Audio Capture
@@ -533,8 +487,8 @@ const JoinMeeting = () => {
                       <Button
                         type="button"
                         onClick={startRealTimeTranscription}
-                        disabled={meetingBotStatus !== 'success'}
-                        className={`bg-green-600 hover:bg-green-700 ${meetingBotStatus !== 'success' ? "opacity-50 pointer-events-none" : ""}`}
+                        className={`bg-green-600 hover:bg-green-700`}
+                        disabled={loading || !audioCaptureTitle.trim()}
                       >
                         <Mic className="h-4 w-4 mr-2" />
                         Start Recording
@@ -550,38 +504,6 @@ const JoinMeeting = () => {
                       </Button>
                     )}
                   </div>
-                  {/* Connection Status */}
-                  {connectionStatus !== 'idle' && (
-                    <div className="flex items-center gap-2">
-                      {getStatusIcon(connectionStatus)}
-                      <span className={`text-sm ${
-                        connectionStatus === 'connected' ? 'text-green-400' :
-                        connectionStatus === 'error' ? 'text-red-400' :
-                        'text-yellow-400'
-                      }`}>
-                        {connectionStatus === 'connecting' && 'Connecting to transcription service...'}
-                        {connectionStatus === 'connected' && 'Connected to transcription service'}
-                        {connectionStatus === 'error' && 'Failed to connect to transcription service'}
-                      </span>
-                    </div>
-                  )}
-                  {/* Status Alerts */}
-                  {meetingBotStatus === 'success' && (
-                    <Alert className="mt-4 border-green-600 bg-green-600/10">
-                      <CheckCircle className="h-4 w-4 text-green-400" />
-                      <AlertDescription className="text-green-400">
-                        Audio capture initialized and ready. Click Start Recording when ready.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                  {meetingBotStatus === 'error' && (
-                    <Alert className="mt-4 border-red-600 bg-red-600/10">
-                      <XCircle className="h-4 w-4 text-red-400" />
-                      <AlertDescription className="text-red-400">
-                        Failed to initialize audio capture mode. Please try again.
-                      </AlertDescription>
-                    </Alert>
-                  )}
                 </form>
                 {/* Live Transcript Display */}
                 {(isRecording || liveTranscript) && (
@@ -598,6 +520,23 @@ const JoinMeeting = () => {
             </Card>
           </TabsContent>
 
+          {/* Virtual Audio Mode */}
+          <TabsContent value="virtual" className="mt-8 space-y-6">
+            <VirtualAudioSetup
+              onDeviceSelected={handleVirtualDeviceSelected}
+              onSetupComplete={handleVirtualAudioSetupComplete}
+            />
+            {virtualAudioStream && (
+              <RealTimeTranscription
+                audioStream={virtualAudioStream}
+                onTranscriptUpdate={handleTranscriptUpdate}
+                isActive={isVirtualAudioActive}
+                onToggle={toggleVirtualAudioTranscription}
+              />
+            )}
+          </TabsContent>
+
+          {/* Upload Audio Mode */}
           <TabsContent value="upload" className="mt-8">
             <Card className="bg-white/10 backdrop-blur-md border-white/20">
               <CardHeader>
