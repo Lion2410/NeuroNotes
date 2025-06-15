@@ -497,197 +497,209 @@ const JoinMeeting = () => {
           defaultValue="audio"
           className="w-full"
         >
-          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 bg-white/10 border-white/20 text-xs md:text-base">
+          <TabsList
+            className="grid w-full grid-cols-3 bg-white/10 border-white/20 text-xs md:text-base mb-3 fixed bottom-0 left-0 right-0 z-20 md:static md:mb-0"
+            style={{
+              maxWidth: "100vw",
+              borderRadius: 0,
+              boxShadow: "0 -2px 16px 0 rgba(60,0,120,0.05)",
+              marginLeft: 0,
+              marginRight: 0
+            }}
+          >
             <TabsTrigger
               value="audio"
-              className="data-[state=active]:bg-purple-600 data-[state=active]:text-white"
+              className="py-3 data-[state=active]:bg-purple-600 data-[state=active]:text-white"
             >
               Audio Capture
             </TabsTrigger>
             <TabsTrigger
               value="virtual"
-              className="data-[state=active]:bg-purple-600 data-[state=active]:text-white"
+              className="py-3 data-[state=active]:bg-purple-600 data-[state=active]:text-white"
             >
               Virtual Audio
             </TabsTrigger>
             <TabsTrigger
               value="upload"
-              className="data-[state=active]:bg-purple-600 data-[state=active]:text-white"
+              className="py-3 data-[state=active]:bg-purple-600 data-[state=active]:text-white"
             >
               Upload Audio
             </TabsTrigger>
           </TabsList>
 
-          {/* Audio Capture Mode */}
-          <TabsContent value="audio" className="mt-6 md:mt-8 space-y-4 md:space-y-6">
-            <Card className="bg-white/10 backdrop-blur-md border-white/20">
-              <CardHeader>
-                <CardTitle className="text-white text-lg md:text-xl">Audio Capture Mode</CardTitle>
-                <CardDescription className="text-slate-300 text-sm md:text-base">
-                  Use your microphone to capture and transcribe audio in real-time. Give your note a descriptive title below before recording.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleAudioCaptureStart} className="space-y-5 md:space-y-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="note-title" className="text-white">Title</Label>
-                    <Input
-                      id="note-title"
-                      type="text"
-                      placeholder="Enter a descriptive note title"
-                      value={audioCaptureTitle}
-                      onChange={(e) => setAudioCaptureTitle(e.target.value)}
-                      className="bg-white/10 border-white/20 text-white placeholder:text-slate-400"
-                      required
-                    />
-                    <p className="text-xs md:text-sm text-slate-400">
-                      The title will be used to save your transcription note.
-                    </p>
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
-                    <Button
-                      type="submit"
-                      disabled={loading || !audioCaptureTitle.trim()}
-                      className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-3 py-2"
-                    >
-                      {loading ? "Initializing..." : (
-                        <>
-                          <Play className="h-4 w-4 mr-2" />
-                          Ready Audio Capture
-                        </>
+          <div className="pb-20 md:pb-0">
+            {/* Audio Capture Mode */}
+            <TabsContent value="audio" className="mt-6 md:mt-8 space-y-4 md:space-y-6">
+              <Card className="bg-white/10 backdrop-blur-md border-white/20">
+                <CardHeader>
+                  <CardTitle className="text-white text-lg md:text-xl">Audio Capture Mode</CardTitle>
+                  <CardDescription className="text-slate-300 text-sm md:text-base">
+                    Use your microphone to capture and transcribe audio in real-time. Give your note a descriptive title below before recording.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleAudioCaptureStart} className="space-y-5 md:space-y-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="note-title" className="text-white">Title</Label>
+                      <Input
+                        id="note-title"
+                        type="text"
+                        placeholder="Enter a descriptive note title"
+                        value={audioCaptureTitle}
+                        onChange={(e) => setAudioCaptureTitle(e.target.value)}
+                        className="bg-white/10 border-white/20 text-white placeholder:text-slate-400"
+                        required
+                      />
+                      <p className="text-xs md:text-sm text-slate-400">
+                        The title will be used to save your transcription note.
+                      </p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
+                      <Button
+                        type="submit"
+                        disabled={loading || !audioCaptureTitle.trim()}
+                        className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-3 py-2"
+                      >
+                        {loading ? "Initializing..." : (
+                          <>
+                            <Play className="h-4 w-4 mr-2" />
+                            Ready Audio Capture
+                          </>
+                        )}
+                      </Button>
+                      {!isRecording ? (
+                        <Button
+                          type="button"
+                          onClick={startRealTimeTranscription}
+                          className={`flex-1 bg-green-600 hover:bg-green-700 px-3 py-2`}
+                          disabled={loading || !audioCaptureTitle.trim() || !!microphonePermError}
+                        >
+                          <Mic className="h-4 w-4 mr-2" />
+                          Start Recording
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          onClick={stopRealTimeTranscription}
+                          className="flex-1 bg-red-600 hover:bg-red-700 px-3 py-2"
+                        >
+                          <Square className="h-4 w-4 mr-2" />
+                          Stop Recording
+                        </Button>
                       )}
-                    </Button>
-                    {!isRecording ? (
+                    </div>
+                  </form>
+                  {/* Show microphone permission error if present */}
+                  {microphonePermError && (
+                    <div className="mt-4 bg-red-900/40 border border-red-400 text-white p-3 rounded flex flex-col sm:flex-row items-center gap-3">
+                      <AlertCircle className="h-5 w-5 text-red-400" />
+                      <div className="flex-1">
+                        <b>Microphone Access Denied:</b>
+                        <div className="mt-1 text-xs md:text-sm">
+                          {microphonePermError}
+                          <p className="mt-2 text-yellow-200">To re-enable, check your browser's address bar for a blocked camera/mic icon and allow access, then reload this page. <br />
+                          On Chrome: Click the lock icon → Site settings → Allow Microphone, then reload.<br />
+                          If the problem persists, try another browser.</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Live Transcript Display */}
+                  {(isRecording || liveTranscript) && (
+                    <div className="mt-4 md:mt-6">
+                      <h3 className="text-white font-semibold mb-2 md:mb-3">Live Transcript</h3>
+                      <div className="bg-white/5 rounded-lg p-3 md:p-4 border border-white/10 min-h-[70px] max-h-52 md:max-h-[300px] overflow-y-auto">
+                        <p className="text-slate-300 leading-relaxed text-xs md:text-base break-words whitespace-pre-line">
+                          {liveTranscript || (isRecording ? "Listening..." : "No transcript yet")}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {connectionStatus === 'error' && !microphonePermError && (
+                    <div className="mt-4 flex flex-col sm:flex-row items-center gap-2">
                       <Button
                         type="button"
                         onClick={startRealTimeTranscription}
-                        className={`flex-1 bg-green-600 hover:bg-green-700 px-3 py-2`}
-                        disabled={loading || !audioCaptureTitle.trim() || !!microphonePermError}
+                        variant="secondary"
+                        className="bg-yellow-500 hover:bg-yellow-600 text-black"
                       >
-                        <Mic className="h-4 w-4 mr-2" />
-                        Start Recording
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Retry Connection
                       </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        onClick={stopRealTimeTranscription}
-                        className="flex-1 bg-red-600 hover:bg-red-700 px-3 py-2"
-                      >
-                        <Square className="h-4 w-4 mr-2" />
-                        Stop Recording
-                      </Button>
-                    )}
-                  </div>
-                </form>
-                {/* Show microphone permission error if present */}
-                {microphonePermError && (
-                  <div className="mt-4 bg-red-900/40 border border-red-400 text-white p-3 rounded flex flex-col sm:flex-row items-center gap-3">
-                    <AlertCircle className="h-5 w-5 text-red-400" />
-                    <div className="flex-1">
-                      <b>Microphone Access Denied:</b>
-                      <div className="mt-1 text-xs md:text-sm">
-                        {microphonePermError}
-                        <p className="mt-2 text-yellow-200">To re-enable, check your browser's address bar for a blocked camera/mic icon and allow access, then reload this page. <br />
-                        On Chrome: Click the lock icon → Site settings → Allow Microphone, then reload.<br />
-                        If the problem persists, try another browser.</p>
+                      <span className="text-yellow-200 ml-2 text-xs">Trouble connecting? Check Deepgram API Key on backend.</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Virtual Audio Mode */}
+            <TabsContent value="virtual" className="mt-6 md:mt-8 space-y-4 md:space-y-6">
+              <VirtualAudioSetup
+                onDeviceSelected={handleVirtualDeviceSelected}
+                onSetupComplete={handleVirtualAudioSetupComplete}
+              />
+              {virtualAudioStream && (
+                <RealTimeTranscription
+                  audioStream={virtualAudioStream}
+                  onTranscriptUpdate={handleTranscriptUpdate}
+                  isActive={isVirtualAudioActive}
+                  onToggle={toggleVirtualAudioTranscription}
+                />
+              )}
+            </TabsContent>
+
+            {/* Upload Audio Mode */}
+            <TabsContent value="upload" className="mt-6 md:mt-8">
+              <Card className="bg-white/10 backdrop-blur-md border-white/20">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center gap-2 text-lg md:text-xl">
+                    <Upload className="h-5 w-5 text-purple-400" />
+                    Upload Audio File
+                  </CardTitle>
+                  <CardDescription className="text-slate-300">Upload a meeting or audio file for AI-powered transcription</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleFileUpload} className="space-y-4 md:space-y-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="audio-file" className="text-white">Audio File</Label>
+                      <div className="border-2 border-dashed border-white/20 rounded-lg p-5 md:p-8 text-center hover:border-purple-400 transition-colors">
+                        <input
+                          id="audio-file"
+                          type="file"
+                          accept="audio/*"
+                          onChange={handleFileChange}
+                          className="hidden"
+                        />
+                        <label htmlFor="audio-file" className="cursor-pointer flex flex-col items-center gap-3 md:gap-4">
+                          <Upload className="h-8 w-8 md:h-12 md:w-12 text-slate-400" />
+                          <div>
+                            <p className="text-white font-medium text-sm md:text-base">
+                              {selectedFile ? selectedFile.name : 'Tap to upload audio file'}
+                            </p>
+                            <p className="text-xs md:text-sm text-slate-400">Supports MP3, WAV, M4A, FLAC, and more</p>
+                          </div>
+                        </label>
                       </div>
                     </div>
-                  </div>
-                )}
-                {/* Live Transcript Display */}
-                {(isRecording || liveTranscript) && (
-                  <div className="mt-4 md:mt-6">
-                    <h3 className="text-white font-semibold mb-2 md:mb-3">Live Transcript</h3>
-                    <div className="bg-white/5 rounded-lg p-3 md:p-4 border border-white/10 min-h-[70px] max-h-52 md:max-h-[300px] overflow-y-auto">
-                      <p className="text-slate-300 leading-relaxed text-xs md:text-base break-words whitespace-pre-line">
-                        {liveTranscript || (isRecording ? "Listening..." : "No transcript yet")}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {connectionStatus === 'error' && !microphonePermError && (
-                  <div className="mt-4 flex flex-col sm:flex-row items-center gap-2">
                     <Button
-                      type="button"
-                      onClick={startRealTimeTranscription}
-                      variant="secondary"
-                      className="bg-yellow-500 hover:bg-yellow-600 text-black"
+                      type="submit"
+                      disabled={loading || !selectedFile}
+                      className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-3 py-4 text-base md:text-lg"
+                      style={{ minHeight: 48 }}
                     >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Retry Connection
+                      {loading ? 'Processing...' : (
+                        <>
+                          <Upload className="h-5 w-5 mr-2" />
+                          Start Transcription
+                        </>
+                      )}
                     </Button>
-                    <span className="text-yellow-200 ml-2 text-xs">Trouble connecting? Check Deepgram API Key on backend.</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Virtual Audio Mode */}
-          <TabsContent value="virtual" className="mt-6 md:mt-8 space-y-4 md:space-y-6">
-            <VirtualAudioSetup
-              onDeviceSelected={handleVirtualDeviceSelected}
-              onSetupComplete={handleVirtualAudioSetupComplete}
-            />
-            {virtualAudioStream && (
-              <RealTimeTranscription
-                audioStream={virtualAudioStream}
-                onTranscriptUpdate={handleTranscriptUpdate}
-                isActive={isVirtualAudioActive}
-                onToggle={toggleVirtualAudioTranscription}
-              />
-            )}
-          </TabsContent>
-
-          {/* Upload Audio Mode */}
-          <TabsContent value="upload" className="mt-6 md:mt-8">
-            <Card className="bg-white/10 backdrop-blur-md border-white/20">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2 text-lg md:text-xl">
-                  <Upload className="h-5 w-5 text-purple-400" />
-                  Upload Audio File
-                </CardTitle>
-                <CardDescription className="text-slate-300">Upload a meeting or audio file for AI-powered transcription</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleFileUpload} className="space-y-4 md:space-y-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="audio-file" className="text-white">Audio File</Label>
-                    <div className="border-2 border-dashed border-white/20 rounded-lg p-5 md:p-8 text-center hover:border-purple-400 transition-colors">
-                      <input
-                        id="audio-file"
-                        type="file"
-                        accept="audio/*"
-                        onChange={handleFileChange}
-                        className="hidden"
-                      />
-                      <label htmlFor="audio-file" className="cursor-pointer flex flex-col items-center gap-3 md:gap-4">
-                        <Upload className="h-8 w-8 md:h-12 md:w-12 text-slate-400" />
-                        <div>
-                          <p className="text-white font-medium text-sm md:text-base">
-                            {selectedFile ? selectedFile.name : 'Click to upload audio file'}
-                          </p>
-                          <p className="text-xs md:text-sm text-slate-400">Supports MP3, WAV, M4A, FLAC, and other formats</p>
-                        </div>
-                      </label>
-                    </div>
-                  </div>
-                  <Button
-                    type="submit"
-                    disabled={loading || !selectedFile}
-                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-3 py-2"
-                  >
-                    {loading ? 'Processing...' : (
-                      <>
-                        <Upload className="h-4 w-4 mr-2" />
-                        Start Transcription
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
+                  </form>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </div>
         </Tabs>
 
         {/* Transcription Results */}
