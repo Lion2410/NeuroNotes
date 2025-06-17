@@ -6,8 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import AudioWaveformVisualizer from "./AudioWaveformVisualizer";
 
-// Load lamejs via CDN (add <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.0/dist/lame.min.js"></script> to your HTML)
-// For TypeScript, declare the global if using CDN
+// Declare Lame for TypeScript when using CDN
 declare global {
   interface Window { Lame: any; }
 }
@@ -215,7 +214,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     return new Uint8Array(mp3Data);
   }
 
-  // Chunking logic: saves MP3 and sends to Deepgram
+  // Chunking logic: saves MP3 and sends to existing transcribe-audio
   const handleChunk = async (sampleRate: number) => {
     if (!recBuffersRef.current.length) return;
     setProcessing(true);
@@ -239,7 +238,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     }
 
     const formData = new FormData();
-    formData.append('audio', new Blob([mp3Data], { type: 'audio/mpeg' }), 'audio.mp3');
+    formData.append('audio', new File([mp3Data], 'audio.mp3', { type: 'audio/mpeg' })); // Use File instead of Blob
 
     let accessToken = '';
     if (session && session.access_token) accessToken = session.access_token;
