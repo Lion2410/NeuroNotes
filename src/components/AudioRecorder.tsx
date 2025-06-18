@@ -284,6 +284,10 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   //   // eslint-disable-next-line react-hooks/exhaustive-deps
   // }, [isRecording]);
 
+  useEffect(() => {
+      toast({ title: "Test", description: "Testing to see if my changes are committed", variant: "destructive" });
+  }, [])
+
   // Clean up on unmount
   useEffect(() => {
     return () => {
