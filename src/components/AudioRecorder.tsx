@@ -269,20 +269,20 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   };
 
   // Effect: when isRecording toggles, start/stop logic
-  useEffect(() => {
-    if (isRecording) {
-      startRecording();
-      return () => {};
-    } else {
-      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-      if (elapsedTimerRef.current) { clearInterval(elapsedTimerRef.current); elapsedTimerRef.current = null; }
-      if (recBuffersRef.current.length && audioContextRef.current) {
-        handleChunk(audioContextRef.current.sampleRate);
-      }
-      stopRecording();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRecording]);
+  // useEffect(() => {
+  //   if (isRecording) {
+  //     startRecording();
+  //     return () => {};
+  //   } else {
+  //     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+  //     if (elapsedTimerRef.current) { clearInterval(elapsedTimerRef.current); elapsedTimerRef.current = null; }
+  //     if (recBuffersRef.current.length && audioContextRef.current) {
+  //       handleChunk(audioContextRef.current.sampleRate);
+  //     }
+  //     stopRecording();
+  //   }
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [isRecording]);
 
   // Clean up on unmount
   useEffect(() => {
