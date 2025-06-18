@@ -78,7 +78,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     const transcriptText = fullSpeakerSegmentsRef.current.map(seg => `[${seg.speaker}]: ${seg.text}`).join('\n');
     onFinalized(transcriptText, [...fullSpeakerSegmentsRef.current]);
     toast({ title: "Recording Stopped", description: "Transcription finalized and ready." });
-  }, [onFinalized, setIsRecording, toast]);
+  }, [onFinalized, isRecording]);
 
   // Start logic
   const startRecording = useCallback(async () => {
