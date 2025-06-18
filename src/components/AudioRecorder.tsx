@@ -6,6 +6,11 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import AudioWaveformVisualizer from "./AudioWaveformVisualizer";
 
+// Declare Lame for TypeScript when using CDN
+declare global {
+  interface Window { Lame: any; }
+}
+
 interface SpeakerSegment {
   speaker: string;
   text: string;
@@ -56,6 +61,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     length: number;
     example: number[];
   } | null>(null);
+  const mp3DataRef = useRef<Uint8Array[]>([]); // Store MP3 chunks
 
   // Stop logic
   const stopRecording = useCallback(() => {
@@ -74,25 +80,30 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     setElapsedSeconds(0);
     setRecordingStart(null);
 
-    // Finalize transcript
-    const transcriptText = fullSpeakerSegmentsRef.current.map(seg => `[${seg.speaker}]: ${seg.text}`).join('\n');
-    onFinalized(transcriptText, [...fullSpeakerSegmentsRef.current]);
-    toast({ title: "Recording Stopped", description: "Transcription finalized and ready." });
+    // Finalize and clear MP3 data
+    if (mp3DataRef.current.length > 0) {
+      const transcriptText = fullSpeakerSegmentsRef.current.map(seg => `[${seg.speaker}]: ${seg.text}`).join('\n');
+      onFinalized(transcriptText, [...fullSpeakerSegmentsRef.current]);
+      toast({ title: "Recording Stopped", description: "Transcription finalized and ready." });
+      mp3DataRef.current = []; // Delete MP3 data on stop
+    }
   }, [onFinalized, setIsRecording, toast]);
 
   // Start logic
   const startRecording = useCallback(async () => {
+    if (isRecording || processing) return;
+    setProcessing(true);
     setTranscript('');
     setSegments([]);
     setProcessing(false);
     fullSpeakerSegmentsRef.current = [];
     sessionIdRef.current = null;
+    recBuffersRef.current = [];
+    mp3DataRef.current = []; // Reset MP3 data
 
     try {
-      // Always use system default microphone
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: PCM_SAMPLE_RATE } });
       streamRef.current = stream;
-      // Always force new AudioContext for sample rate
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: PCM_SAMPLE_RATE });
       audioContextRef.current = audioContext;
       const source = audioContext.createMediaStreamSource(stream);
@@ -107,7 +118,6 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
       processor.onaudioprocess = (event) => {
         const input = event.inputBuffer.getChannelData(0);
-        // If all zeros, warn; for debugging actual silence!
         const zeroed = input.every(v => v === 0);
         if (zeroed) {
           console.warn('[WARN] Recording buffer is all zero! Microphone muted or browser permission bug?');
@@ -115,7 +125,6 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         recBuffersRef.current.push(new Float32Array(input));
       };
 
-      // Set recording start time and begin duration timer
       setRecordingStart(new Date());
       setElapsedSeconds(0);
       if (elapsedTimerRef.current) clearInterval(elapsedTimerRef.current);
@@ -127,6 +136,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         description: "Speak clearly for best transcription results.",
       });
     } catch (error) {
+      console.error("Recording error:", error.message, error.name);
       setIsRecording(false);
       setProcessing(false);
       toast({
@@ -135,7 +145,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         variant: "destructive",
       });
     }
-  }, [setIsRecording, toast]);
+  }, [isRecording, processing, setIsRecording, toast]);
 
   // PCM conversion helper, with stats calculation for waveform
   function float32ToPCM16(floatBuf: Float32Array): Uint8Array {
@@ -151,7 +161,6 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       view.setInt16(i * 2, sample, true);
     }
     rms = Math.sqrt(rms / floatBuf.length);
-    // Small demo: also show 16 sample slice
     const example = Array.from(out.slice(0, 16));
     setLastChunkStats({
       peak: Math.round(peak * 1000) / 1000,
@@ -163,7 +172,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     return out;
   }
 
-  // flatten buffers with copy to new buffer
+  // Flatten buffers
   function flattenBuffers(buffers: Float32Array[]) {
     const len = buffers.reduce((sum, arr) => sum + arr.length, 0);
     const result = new Float32Array(len);
@@ -175,7 +184,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     return result;
   }
 
-  // Proper 24kHz PCM16 resampling: use offline context if needed
+  // Resample to 24kHz if needed
   async function toPCMBuffer(floatBuf: Float32Array, originalSampleRate: number): Promise<Uint8Array> {
     if (originalSampleRate === PCM_SAMPLE_RATE) return float32ToPCM16(floatBuf);
     const frames = Math.ceil(floatBuf.length * PCM_SAMPLE_RATE / originalSampleRate);
@@ -191,45 +200,53 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     return float32ToPCM16(resampled);
   }
 
-  // Chunking logic: sends PCM, update stats for UI with the buffer
+  // Encode to MP3
+  function encodeToMP3(floatBuf: Float32Array): Uint8Array {
+    if (!window.Lame) throw new Error('lamejs not loaded');
+    const mp3Encoder = new window.Lame({
+      output: 'mp3',
+      bitrate: 128,
+      sampleRate: PCM_SAMPLE_RATE,
+      mode: 3 /* mono */
+    });
+    const mp3Data = mp3Encoder.encodeBuffer(floatBuf);
+    mp3Encoder.flush();
+    return new Uint8Array(mp3Data);
+  }
+
+  // Chunking logic: saves MP3 and sends to existing transcribe-audio
   const handleChunk = async (sampleRate: number) => {
     if (!recBuffersRef.current.length) return;
     setProcessing(true);
     const floatBuf = flattenBuffers(recBuffersRef.current);
     recBuffersRef.current = [];
-    setLastRecordedChunk(floatBuf); // <-- For waveform UI
+    setLastRecordedChunk(floatBuf);
 
-    const pcmData = await toPCMBuffer(floatBuf, sampleRate);
+    const mp3Data = encodeToMP3(floatBuf);
+    mp3DataRef.current.push(mp3Data); // Save MP3 chunk
 
-    // Log summary
-    const isZero = pcmData.every(x => x === 0);
-    console.log('[AudioRecorder] PCM chunk size:', pcmData.length, 'First bytes:', Array.from(pcmData.slice(0, 16)), 'All zero:', isZero);
+    const isZero = mp3Data.every(x => x === 0);
+    console.log('[AudioRecorder] MP3 chunk size:', mp3Data.length, 'First bytes:', Array.from(mp3Data.slice(0, 16)), 'All zero:', isZero);
 
     if (isZero) {
-      console.error('[AudioRecorder] ERROR: Buffered chunk is all zero. Microphone silent or disconnected?');
+      console.error('[AudioRecorder] ERROR: MP3 chunk is all zero. Microphone silent or disconnected?');
       toast({
         title: "Audio Issue",
-        description: "A chunk of audio was nearly silent! Your mic or system audio is not transmitting. Check permissions, device & volume.",
+        description: "A chunk of audio was nearly silent! Check permissions, device & volume.",
         variant: "destructive"
       });
     }
-    // Prepare formData
-    const formData = new FormData();
-    formData.append('audio', new Blob([pcmData], { type: 'audio/raw' }), 'audio.pcm');
-    // This endpoint doesn't require 'mode', 'deviceLabel' or sessionId (but keep them if you want for future use, or remove for minimal)
-    // We'll keep only 'audio' since /transcribe-audio only needs this
-    // Remove: mode, sessionId, deviceLabel
 
-    // Auth
+    const formData = new FormData();
+    formData.append('audio', new File([mp3Data], 'audio.mp3', { type: 'audio/mpeg' })); // Use File instead of Blob
+
     let accessToken = '';
     if (session && session.access_token) accessToken = session.access_token;
 
     try {
       const res = await fetch(supabaseTranscribeURL, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        },
+        headers: { 'Authorization': `Bearer ${accessToken}` },
         body: formData
       });
       if (res.status === 401 || res.status === 403) {
@@ -245,11 +262,6 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         return;
       }
       const result = await res.json();
-
-      // Flat transcript and words; speakerSegments not available here
-      if (result.words && Array.isArray(result.words)) {
-        // Optionally parse word segments if needed in the future
-      }
       if (result.transcript) {
         setTranscript(prev => prev + (result.transcript ? '\n' + result.transcript : ''));
         onTranscription(result.transcript);
@@ -272,8 +284,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   useEffect(() => {
     if (isRecording) {
       startRecording();
-      return () => {};
-    } else {
+    } else if (!isRecording && recordingStart) {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
       if (elapsedTimerRef.current) { clearInterval(elapsedTimerRef.current); elapsedTimerRef.current = null; }
       if (recBuffersRef.current.length && audioContextRef.current) {
@@ -282,7 +293,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       stopRecording();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRecording]);
+  }, [isRecording, startRecording, stopRecording]);
 
   // Clean up on unmount
   useEffect(() => {
