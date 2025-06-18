@@ -74,24 +74,19 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     setElapsedSeconds(0);
     setRecordingStart(null);
 
-    // Finalize transcript only if there are buffers
-    if (recBuffersRef.current.length > 0) {
-      const transcriptText = fullSpeakerSegmentsRef.current.map(seg => `[${seg.speaker}]: ${seg.text}`).join('\n');
-      onFinalized(transcriptText, [...fullSpeakerSegmentsRef.current]);
-      toast({ title: "Recording Stopped", description: "Transcription finalized and ready." });
-    }
+    // Finalize transcript
+    const transcriptText = fullSpeakerSegmentsRef.current.map(seg => `[${seg.speaker}]: ${seg.text}`).join('\n');
+    onFinalized(transcriptText, [...fullSpeakerSegmentsRef.current]);
+    toast({ title: "Recording Stopped", description: "Transcription finalized and ready." });
   }, [onFinalized, setIsRecording, toast]);
 
   // Start logic
   const startRecording = useCallback(async () => {
-    if (isRecording || processing) return; // Prevent multiple starts
-    setProcessing(true);
     setTranscript('');
     setSegments([]);
     setProcessing(false);
     fullSpeakerSegmentsRef.current = [];
     sessionIdRef.current = null;
-    recBuffersRef.current = [];
 
     try {
       // Always use system default microphone
@@ -132,7 +127,6 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         description: "Speak clearly for best transcription results.",
       });
     } catch (error) {
-      console.error("Recording error:", error.message, error.name);
       setIsRecording(false);
       setProcessing(false);
       toast({
@@ -141,7 +135,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
         variant: "destructive",
       });
     }
-  }, [isRecording, processing, setIsRecording, toast]);
+  }, [setIsRecording, toast]);
 
   // PCM conversion helper, with stats calculation for waveform
   function float32ToPCM16(floatBuf: Float32Array): Uint8Array {
@@ -222,6 +216,9 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
     // Prepare formData
     const formData = new FormData();
     formData.append('audio', new Blob([pcmData], { type: 'audio/raw' }), 'audio.pcm');
+    // This endpoint doesn't require 'mode', 'deviceLabel' or sessionId (but keep them if you want for future use, or remove for minimal)
+    // We'll keep only 'audio' since /transcribe-audio only needs this
+    // Remove: mode, sessionId, deviceLabel
 
     // Auth
     let accessToken = '';
@@ -275,7 +272,8 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
   useEffect(() => {
     if (isRecording) {
       startRecording();
-    } else if (!isRecording && recordingStart) { // Only stop if recording has started
+      return () => {};
+    } else {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
       if (elapsedTimerRef.current) { clearInterval(elapsedTimerRef.current); elapsedTimerRef.current = null; }
       if (recBuffersRef.current.length && audioContextRef.current) {
@@ -284,7 +282,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       stopRecording();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRecording, startRecording, stopRecording]);
+  }, [isRecording]);
 
   // Clean up on unmount
   useEffect(() => {
