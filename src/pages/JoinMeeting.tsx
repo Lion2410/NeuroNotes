@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, Upload, Play, Save, Mic, MicOff, Square, CheckCircle, XCircle, AlertCircle, Headphones, RefreshCw } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, Upload, Save, Mic, Square, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,11 +11,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import VirtualAudioSetup from '@/components/VirtualAudioSetup';
-import RealTimeTranscription from '@/components/RealTimeTranscription';
-import { VirtualAudioDevice } from '@/utils/VirtualAudioDriver';
 import AudioRecorder from '@/components/AudioRecorder';
 import { useChunkedTranscription, ChunkTranscript } from "@/hooks/useChunkedTranscription";
 import { Badge } from '@/components/ui/badge';
+import { VirtualAudioDevice } from '@/utils/VirtualAudioDriver';
 
 interface TranscriptSegment {
   id: string;
@@ -31,42 +30,27 @@ const JoinMeeting = () => {
   const [saving, setSaving] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [liveTranscript, setLiveTranscript] = useState('');
-  const [isConnected, setIsConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [loading, setLoading] = useState(false);
-  
-  // Virtual audio states
-  const [selectedVirtualDevice, setSelectedVirtualDevice] = useState<any>(null);
-  const [virtualAudioStream, setVirtualAudioStream] = useState<MediaStream | null>(null);
-  const [isVirtualAudioActive, setIsVirtualAudioActive] = useState(false);
-  const [transcriptSegments, setTranscriptSegments] = useState<TranscriptSegment[]>([]);
-  // MEETING MODE: audio (live capture) or upload
-  const [meetingMode, setMeetingMode] = useState<'audio' | 'virtual' | 'upload'>('audio');
-  
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const navigate = useNavigate();
-
-  // Add new state for audio capture note title
   const [audioCaptureTitle, setAudioCaptureTitle] = useState('');
-
   const [microphonePermError, setMicrophonePermError] = useState<string | null>(null);
-
-  // New state for full speaker-labeled transcript segments via AudioRecorder
-  const [speakerSegments, setSpeakerSegments] = useState<any[]>([]);
-
-  // Add state for the new chunked transcription
+  const [speakerSegments, setSpeakerSegments] = useState<TranscriptSegment[]>([]);
+  const [selectedVirtualDevice, setSelectedVirtualDevice] = useState<VirtualAudioDevice | null>(null);
+  const [virtualAudioStream, setVirtualAudioStream] = useState<MediaStream | null>(null);
   const [virtualAudioTranscripts, setVirtualAudioTranscripts] = useState<ChunkTranscript[]>([]);
   const [isVirtualRecording, setIsVirtualRecording] = useState(false);
+  const [virtualMediaRecorderError, setVirtualMediaRecorderError] = useState<string | null>(null);
+  const [virtualAudioDebug, setVirtualAudioDebug] = useState<any>(null);
+  const [meetingMode, setMeetingMode] = useState<'audio' | 'virtual' | 'upload'>('audio');
 
-  const authToken = window.sessionStorage.getItem('supabase.auth.token') || "";
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
-  // Use new hook for virtual audio, only when Virtual tab & active
+  const { user, session } = useAuth();
+  const { toast } = useToast();
+
+  const authToken = session?.access_token;
+
   const {
     isRecording: isVirtRecActive,
     isProcessing: isVirtRecProcessing,
@@ -81,22 +65,13 @@ const JoinMeeting = () => {
     onTranscriptsUpdate: setVirtualAudioTranscripts,
   });
 
-  // Add debug state for MediaRecorder/running errors
-  const [virtualMediaRecorderError, setVirtualMediaRecorderError] = useState<string | null>(null);
-
-  // Virtual audio debug info for UI
-  const [virtualAudioDebug, setVirtualAudioDebug] = useState<any>(null);
-
-  // Track stream/manual restart for cleaner debug and state
   useEffect(() => {
-    // Whenever the stream changes, log and reset chunks & recording
     setVirtualMediaRecorderError(null);
     setIsVirtualRecording(false);
     setVirtualAudioTranscripts([]);
     resetVirtRecording();
     if (virtualAudioStream) {
       console.log("[VirtualAudio] New stream attached:", virtualAudioStream);
-      // Show media track info for debug UI
       setVirtualAudioDebug({
         active: virtualAudioStream.active,
         trackCount: virtualAudioStream.getTracks().length,
@@ -113,13 +88,24 @@ const JoinMeeting = () => {
     }
   }, [virtualAudioStream, resetVirtRecording]);
 
-  // Virtual audio handlers
   const handleVirtualDeviceSelected = (device: VirtualAudioDevice) => {
     setSelectedVirtualDevice(device);
     console.log('Selected virtual audio device:', device);
   };
 
   const handleVirtualAudioSetupComplete = (stream: MediaStream) => {
+    console.log("[VirtualAudio] Setup complete. Stream details:", {
+      active: stream?.active,
+      trackCount: stream?.getTracks().length,
+      tracks: stream?.getTracks().map(t => ({
+        kind: t.kind,
+        enabled: t.enabled,
+        readyState: t.readyState,
+        muted: (t as any)?.muted,
+        id: t.id
+      })),
+      constraints: stream?.getAudioTracks()[0]?.getSettings?.(),
+    });
     setVirtualAudioStream(stream);
     toast({
       title: "Virtual Audio Ready",
@@ -128,37 +114,38 @@ const JoinMeeting = () => {
     if (!stream) {
       setVirtualMediaRecorderError("MediaStream is null after setup!");
       console.error("[VirtualAudio] Setup returned a null stream.");
-      return;
     }
-    // Log stream properties for troubleshooting
-    console.log("[VirtualAudio] Setup complete. Stream details:", {
-      active: stream.active,
-      trackCount: stream.getTracks().length,
-      tracks: stream.getTracks().map(t => ({
-        kind: t.kind,
-        enabled: t.enabled,
-        readyState: t.readyState,
-        muted: (t as any)?.muted,
-        id: t.id
-      })),
-      constraints: stream.getAudioTracks()[0]?.getSettings?.(),
-    });
   };
 
-  // --- OVERRIDE: toggleVirtualAudioTranscription with better error handling & codec fallback ---
   const toggleVirtualAudioTranscription = () => {
-    setVirtualMediaRecorderError(null);
+    console.log("[VirtualAudio] toggleVirtualAudioTranscription called, isVirtualRecording:", isVirtualRecording);
+
+    if (isVirtualRecording) {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current = null;
+      }
+      stopVirtRecording();
+      setIsVirtualRecording(false);
+      console.log("[VirtualAudio] Stopped transcription");
+      toast({
+        title: "Virtual Audio Stopped",
+        description: "Transcription has been stopped.",
+      });
+      return;
+    }
 
     if (!virtualAudioStream) {
       setVirtualMediaRecorderError("Virtual audio stream unavailable!");
       toast({
         title: "Audio Device Error",
-        description: "No virtual audio stream is active. Please select and setup a device first.",
+        description: "No virtual audio stream is active. Please select and set up a device first.",
         variant: "destructive",
       });
+      console.error("[VirtualAudio] No virtual audio stream available");
       return;
     }
-    // Check stream tracks live before starting
+
     const tracks = virtualAudioStream.getTracks();
     if (!tracks.length) {
       setVirtualMediaRecorderError("No media tracks present in virtual audio stream.");
@@ -167,263 +154,93 @@ const JoinMeeting = () => {
         description: "No audio tracks found on selected virtual stream.",
         variant: "destructive",
       });
+      console.error("[VirtualAudio] No tracks in virtual audio stream");
       return;
     }
+
     const audioTrack = virtualAudioStream.getAudioTracks()[0];
-    if (!audioTrack) {
-      setVirtualMediaRecorderError("No audio track found in stream!");
+    if (!audioTrack || audioTrack.readyState !== 'live') {
+      setVirtualMediaRecorderError("No active audio track found in stream!");
       toast({
         title: "Audio Track Error",
         description: "The selected audio device is not providing an active audio track.",
         variant: "destructive",
       });
+      console.error("[VirtualAudio] No active audio track:", audioTrack);
       return;
     }
-    if (isVirtualRecording) {
-      stopVirtRecording();
-      console.log("[VirtualAudio] Stopping chunked transcription (user toggle).");
-    } else {
-      setVirtualAudioTranscripts([]);
-      resetVirtRecording();
 
-      // Diagnosing common causes for MediaRecorder failing to start:
-      // -- repeat try for codecs, show errors if it fails
-      let recorder;
-      let codecTried = '';
+    setVirtualMediaRecorderError(null);
+    setVirtualAudioTranscripts([]);
+    resetVirtRecording();
+
+    let recorder: MediaRecorder | null = null;
+    const mimeTypes = ["audio/webm;codecs=opus", "audio/webm", ""];
+    let codecTried = "";
+
+    for (const mimeType of mimeTypes) {
       try {
-        codecTried = "audio/webm;codecs=opus";
-        recorder = new MediaRecorder(virtualAudioStream, { mimeType: codecTried });
+        codecTried = mimeType || "default";
+        recorder = new MediaRecorder(virtualAudioStream, mimeType ? { mimeType } : {});
         console.log("[VirtualAudio] MediaRecorder created with", codecTried);
-      } catch (err1) {
-        try {
-          codecTried = "audio/webm";
-          recorder = new MediaRecorder(virtualAudioStream, { mimeType: codecTried });
-          console.log("[VirtualAudio] MediaRecorder created with fallback", codecTried);
-        } catch (err2) {
-          try {
-            codecTried = "";
-            recorder = new MediaRecorder(virtualAudioStream);
-            console.log("[VirtualAudio] MediaRecorder created with default mimeType.");
-          } catch (errFinal) {
-            console.error("[VirtualAudio] Failed to create MediaRecorder with any mimeType.", errFinal);
-            setVirtualMediaRecorderError("Failed to create MediaRecorder: " + (errFinal && errFinal.message ? errFinal.message : errFinal));
-            toast({
-              title: "MediaRecorder Error",
-              description: "Cannot record from selected audio device: " + (errFinal?.message || "unknown error"),
-              variant: "destructive"
-            });
-            return;
-          }
-        }
+        break;
+      } catch (err) {
+        console.warn(`[VirtualAudio] Failed to create MediaRecorder with ${codecTried}:`, err);
       }
-      // If it makes it here, log success and proceed with normal handler
-      console.log("[VirtualAudio] Starting virtual chunked transcription (MediaRecorder mode:", codecTried || "default", ").");
-      setVirtualMediaRecorderError(null);
-      setIsVirtualRecording(true);
     }
-    setIsVirtualRecording((prev) => !prev);
-  };
 
-  // Replace this line:
-  // const supabaseWSURL = 'wss://qlfqnclqowlljjcbeunz.functions.supabase.co/transcribe-audio-realtime';
-  // with the proper websocket function endpoint below!
-  const supabaseWSURL = 'wss://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio-realtime';
-
-  const startRealTimeTranscription = async () => {
-    try {
-      setConnectionStatus('connecting');
-      setMicrophonePermError(null);
-
-      // Request microphone access
-      let stream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      } catch (mediaErr: any) {
-        let errorMsg = "Failed to access microphone.";
-        let systemMsg = "";
-        if (
-          mediaErr &&
-          (mediaErr.name === "NotAllowedError" ||
-            mediaErr.name === "PermissionDeniedError" ||
-            mediaErr.message?.toLowerCase().includes("denied"))
-        ) {
-          errorMsg = "Microphone permission denied by browser or system. Please check your browser's privacy settings and reload this page, or try a different browser.";
-          setMicrophonePermError(errorMsg);
-          setConnectionStatus('error');
-          toast({
-            title: "Microphone Access Blocked",
-            description: errorMsg,
-            variant: "destructive",
-          });
-          // Do NOT retry when denied by user
-          return;
-        } else {
-          systemMsg =
-            typeof mediaErr === "string"
-              ? mediaErr
-              : mediaErr.message || JSON.stringify(mediaErr);
-          toast({
-            title: "Microphone Error",
-            description: `${errorMsg} Details: ${systemMsg}`,
-            variant: "destructive",
-          });
-          setMicrophonePermError(systemMsg);
-          setConnectionStatus('error');
-          // Could be a transient error, but don't auto-retry, leave to user
-          return;
-        }
-      }
-
-      // Create MediaRecorder
-      mediaRecorderRef.current = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
+    if (!recorder) {
+      setVirtualMediaRecorderError("Failed to create MediaRecorder with any supported mimeType.");
+      toast({
+        title: "MediaRecorder Error",
+        description: "Cannot record from selected audio device: unsupported format.",
+        variant: "destructive",
       });
+      console.error("[VirtualAudio] Failed to create MediaRecorder with any mimeType");
+      return;
+    }
 
-      // Setup WebSocket connection
-      wsRef.current = new WebSocket(supabaseWSURL);
-
-      wsRef.current.onopen = () => {
-        setIsConnected(true);
-        setConnectionStatus('connected');
-        toast({
-          title: "Connected",
-          description: "Real-time transcription started.",
-        });
-        console.log("WebSocket connection established");
-      };
-
-      wsRef.current.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log('WebSocket message received:', data);
-
-          if (data.type === 'transcript' && data.transcript) {
-            setLiveTranscript(prev => prev + ' ' + data.transcript);
-          } else if (data.type === 'connection' && data.status === 'connected') {
-            console.log('WebSocket connection confirmed');
-          } else if (data.error) {
-            console.error('WebSocket error from server:', data.error);
-            toast({
-              title: "Transcription Error",
-              description: data.error,
-              variant: "destructive"
-            });
-          }
-        } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
-        }
-      };
-
-      wsRef.current.onerror = (error) => {
-        // Prevent auto-reconnecting for permission issues; allow user to manually retry
-        console.error('WebSocket error:', error);
-        setConnectionStatus('error');
-        setIsConnected(false);
-
-        if (!microphonePermError) {
-          toast({
-            title: "Connection Error",
-            description: "Failed to connect to transcription service. Please check your network and Deepgram API Key, then retry.",
-            variant: "destructive"
-          });
-        }
-        if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
-        // No retry; let user manually retry
-      };
-
-      wsRef.current.onclose = (event) => {
-        console.log('WebSocket closed:', event.code, event.reason);
-        setIsConnected(false);
-        setConnectionStatus('idle');
-        // Only try to reconnect if not a permission error and was recording
-        if (
-          event.code !== 1000 &&
-          isRecording &&
-          !microphonePermError
-        ) {
-          toast({
-            title: "Lost Connection",
-            description: "WebSocket disconnected. Click Retry Connection below.",
-            variant: "destructive"
-          });
-        }
-      };
-
-      // Setup MediaRecorder events
-      mediaRecorderRef.current.ondataavailable = async (event) => {
-        if (event.data.size > 0 && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          try {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              const base64 = (reader.result as string).split(',')[1];
-              if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify({
-                  type: 'audio',
-                  data: base64
-                }));
-              }
-            };
-            reader.readAsDataURL(event.data);
-          } catch (error) {
-            console.error('Error processing audio data:', error);
-          }
-        }
-      };
-
-      // Start recording
-      mediaRecorderRef.current.start(1000); // Send data every second
-      setIsRecording(true);
-    } catch (error: any) {
-      setConnectionStatus('error');
-      setIsConnected(false);
-      let errorMessage = error?.message || "Failed to access microphone or connect to transcription service.";
-      if (
-        error?.name === "NotAllowedError" ||
-        error?.name === "PermissionDeniedError" ||
-        errorMessage.toLowerCase().includes("denied")
-      ) {
-        errorMessage = "Microphone permission denied by browser or system. Please check your browser's privacy settings and reload this page, or try a different browser.";
-        setMicrophonePermError(errorMessage);
-        toast({
-          title: "Microphone Access Blocked",
-          description: errorMessage,
-          variant: "destructive"
-        });
-        // Don't retry
-        return;
-      } else {
-        toast({
-          title: "Setup Error",
-          description: errorMessage,
-          variant: "destructive"
-        });
-        setMicrophonePermError(errorMessage);
-        // Don't retry; let user decide
-        return;
+    mediaRecorderRef.current = recorder;
+    mediaRecorderRef.current.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        audioChunksRef.current.push(event.data);
+        console.log("[VirtualAudio] Audio chunk captured, size:", event.data.size);
       }
-    }
-  };
+    };
 
-  const stopRealTimeTranscription = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
+    mediaRecorderRef.current.onstop = () => {
+      console.log("[VirtualAudio] MediaRecorder stopped, chunks collected:", audioChunksRef.current.length);
+      audioChunksRef.current = [];
+    };
+
+    mediaRecorderRef.current.onerror = (event) => {
+      const error = (event as any).error || "Unknown MediaRecorder error";
+      setVirtualMediaRecorderError(`MediaRecorder error: ${error}`);
+      toast({
+        title: "Recording Error",
+        description: `Failed to record audio: ${error}`,
+        variant: "destructive",
+      });
+      console.error("[VirtualAudio] MediaRecorder error:", error);
+    };
+
+    try {
+      mediaRecorderRef.current.start(10000);
+      setIsVirtualRecording(true);
+      console.log("[VirtualAudio] Started transcription with", codecTried);
+      toast({
+        title: "Virtual Audio Started",
+        description: "Capturing system audio for transcription.",
+      });
+    } catch (err) {
+      setVirtualMediaRecorderError(`Failed to start MediaRecorder: ${err}`);
+      toast({
+        title: "Recording Error",
+        description: `Cannot start recording: ${err}`,
+        variant: "destructive",
+      });
+      console.error("[VirtualAudio] Failed to start MediaRecorder:", err);
     }
-    if (wsRef.current) {
-      wsRef.current.close(1000, 'User stopped recording');
-    }
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-    }
-    setIsRecording(false);
-    setIsConnected(false);
-    setConnectionStatus('idle');
-    
-    // Add the live transcript to results
-    if (liveTranscript.trim()) {
-      setTranscriptionResults(prev => [...prev, liveTranscript.trim()]);
-      setLiveTranscript('');
-    }
-    setMicrophonePermError(null);
   };
 
   const handleFileUpload = async (e: React.FormEvent) => {
@@ -445,7 +262,7 @@ const JoinMeeting = () => {
       const response = await fetch('https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsZnFuY2xxb3dsbGpqY2JldW56Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkwNTMwNzMsImV4cCI6MjA2NDYyOTA3M30.tt4NjuhDuBuuKOBvuoaAJIqxt_wmBRlm2KlN_-l-_UU`
+          'Authorization': `Bearer ${authToken}`
         },
         body: formData
       });
@@ -488,41 +305,11 @@ const JoinMeeting = () => {
     }
   };
 
-  // Remove meetingUrl validation for bot, now use audioCaptureTitle for audio capture
-  const handleAudioCaptureStart = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!audioCaptureTitle.trim()) {
-      toast({
-        title: "Title Required",
-        description: "Please enter a title for your note.",
-        variant: "destructive"
-      });
-      return;
-    }
-    setLoading(true);
-
-    try {
-      // Simulate ready state for audio capture setup (no meetingbot function)
-      toast({
-        title: "Ready for Audio Capture",
-        description: "Click Start Recording to begin capturing and transcribing audio."
-      });
-    } catch (error: any) {
-      toast({
-        title: "Audio Capture Failed",
-        description: error.message || "Failed to initialize audio capture.",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // In the save function, use audioCaptureTitle if in audio capture mode
   const handleSaveTranscription = async () => {
-    const transcriptToSave = transcriptSegments.length > 0 
-      ? transcriptSegments.map(s => `[${s.timestamp}] ${s.speaker}: ${s.text}`).join('\n')
-      : transcriptionResults.join(' ');
+    console.log("Trying to save transcription result");
+    const transcriptToSave = speakerSegments.length > 0 
+      ? speakerSegments.map(s => `${s.text}`).join('\n')
+      : transcriptionResults.join('\n');
 
     if (!transcriptToSave.trim() || !user) {
       toast({
@@ -539,10 +326,9 @@ const JoinMeeting = () => {
         .from('transcriptions')
         .insert({
           user_id: user.id,
-          title:
-            meetingMode === 'audio'
-              ? audioCaptureTitle
-              : selectedFile?.name || selectedVirtualDevice?.label || 'Live Meeting Transcription',
+          title: meetingMode === 'audio'
+            ? audioCaptureTitle
+            : selectedFile?.name || selectedVirtualDevice?.label || 'Live Meeting Transcription',
           content: transcriptToSave,
           source_type: selectedFile ? 'upload' : meetingMode === 'audio' ? 'audio_capture' : 'meeting',
           audio_url: null,
@@ -550,9 +336,7 @@ const JoinMeeting = () => {
           duration: null
         });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       toast({
         title: "Transcription Saved",
@@ -560,10 +344,10 @@ const JoinMeeting = () => {
       });
 
       setTranscriptionResults([]);
-      setTranscriptSegments([]);
+      setSpeakerSegments([]);
       setSelectedFile(null);
       setAudioCaptureTitle('');
-      setMeetingMode('audio');
+      setLiveTranscript('');
     } catch (error: any) {
       toast({
         title: "Save Failed",
@@ -577,12 +361,10 @@ const JoinMeeting = () => {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'success':
       case 'connected':
         return <CheckCircle className="h-4 w-4 text-green-400" />;
       case 'error':
         return <XCircle className="h-4 w-4 text-red-400" />;
-      case 'starting':
       case 'connecting':
         return <AlertCircle className="h-4 w-4 text-yellow-400 animate-pulse" />;
       default:
@@ -592,7 +374,6 @@ const JoinMeeting = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
-      {/* Header */}
       <header className="px-4 md:px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center space-x-2 sm:space-x-4">
@@ -600,7 +381,7 @@ const JoinMeeting = () => {
               <ArrowLeft className="h-5 w-5 md:h-6 md:w-6" />
             </Link>
             <div className="flex items-center space-x-2">
-              <img src="/lovable-uploads/2d11ec38-9fc4-4af5-9224-4b5b20a91803.png" alt="NeuroNotes" className="h-9 w-auto sm:h-12" />
+              <img src="/lovable-Uploads/a5a042c4-e054-4df2-b3b5-8ae8386c5f2b.png" alt="NeuroNotes" className="h-9 w-auto sm:h-12" />
               <span className="text-lg md:text-2xl font-bold text-white">NeuroNotes</span>
             </div>
           </div>
@@ -653,7 +434,6 @@ const JoinMeeting = () => {
           </TabsList>
 
           <div className="pb-20 md:pb-0">
-            {/* Audio Capture Mode */}
             <TabsContent value="audio" className="mt-6 md:mt-8 space-y-4 md:space-y-6">
               <Card className="bg-white/10 backdrop-blur-md border-white/20">
                 <CardHeader>
@@ -664,13 +444,10 @@ const JoinMeeting = () => {
                 </CardHeader>
                 <CardContent>
                   <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      // No more "Ready Audio Capture"
-                    }}
+                    onSubmit={(e) => e.preventDefault()}
                     className="space-y-5 md:space-y-6"
                   >
-                    <div className="space-y-2">
+                    <div className="space-y-2 mb-7">
                       <Label htmlFor="note-title" className="text-white">Title</Label>
                       <Input
                         id="note-title"
@@ -686,48 +463,33 @@ const JoinMeeting = () => {
                         The title will be used to save your transcription note.
                       </p>
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
-                      <Button
-                        type="button"
-                        onClick={() => setIsRecording((prev) => !prev)}
-                        disabled={!audioCaptureTitle.trim()}
-                        className={isRecording
-                          ? "flex-1 bg-red-600 hover:bg-red-700 text-white px-3 py-2"
-                          : "flex-1 bg-green-600 hover:bg-green-700 text-white px-3 py-2"}
-                      >
-                        {isRecording ? (
-                          <>
-                            <Square className="h-4 w-4 mr-2" />
-                            Stop Recording
-                          </>
-                        ) : (
-                          <>
-                            <Mic className="h-4 w-4 mr-2" />
-                            Start Recording
-                          </>
-                        )}
-                      </Button>
-                    </div>
                   </form>
                   <AudioRecorder
                     onTranscription={(chunkText) => {
                       setLiveTranscript(prev => prev + (chunkText ? "\n" + chunkText : ""));
                     }}
                     onFinalized={(fullText, segmentsArr) => {
-                      setLiveTranscript(fullText);
-                      setSpeakerSegments(segmentsArr);
+                      const newSegments = segmentsArr.map((seg, index) => ({
+                        id: `seg-${index}`,
+                        timestamp: new Date().toISOString(),
+                        speaker: seg.speaker || 'Unknown',
+                        text: seg.text,
+                        confidence: seg.confidence
+                      }));
+                      setSpeakerSegments(newSegments);
                       setTranscriptionResults([fullText]);
+                      setLiveTranscript('');
                     }}
                     isRecording={isRecording}
                     setIsRecording={setIsRecording}
+                    disabled={!audioCaptureTitle.trim()}
                   />
-                  {/* Live Transcript Display */}
-                  {(isRecording || liveTranscript) && (
+                  {isRecording && (
                     <div className="mt-4 md:mt-6">
                       <h3 className="text-white font-semibold mb-2 md:mb-3">Live Transcript</h3>
                       <div className="bg-white/5 rounded-lg p-3 md:p-4 border border-white/10 min-h-[70px] max-h-52 md:max-h-[300px] overflow-y-auto">
                         <p className="text-slate-300 leading-relaxed text-xs md:text-base break-words whitespace-pre-line">
-                          {liveTranscript || (isRecording ? "Listening..." : "No transcript yet")}
+                          {liveTranscript || "Listening..."}
                         </p>
                       </div>
                     </div>
@@ -736,14 +498,28 @@ const JoinMeeting = () => {
               </Card>
             </TabsContent>
 
-            {/* Virtual Audio Mode */}
             <TabsContent value="virtual" className="mt-6 md:mt-8 space-y-4 md:space-y-6">
-              {/* Live Stream/Device Debug Inspector */}
-              {meetingMode === "virtual" && (
-                <div className="mb-4">
-                  <div className="rounded bg-slate-900/90 border border-slate-700 px-4 py-3 text-xs text-slate-200">
-                    <span className="font-bold text-purple-400 mr-2">Virtual Audio Debug</span>
-                    {virtualAudioDebug ? (
+              <Card className="bg-white/10 backdrop-blur-md border-white/20">
+                <CardHeader>
+                  <CardTitle className="text-white text-lg md:text-xl">Virtual Audio Mode</CardTitle>
+                  <CardDescription className="text-slate-300 text-sm md:text-base">
+                    Capture audio from virtual meetings or system audio. Select a device and start transcription.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <VirtualAudioSetup
+                    onDeviceSelected={handleVirtualDeviceSelected}
+                    onSetupComplete={handleVirtualAudioSetupComplete}
+                  />
+                  {virtualMediaRecorderError && (
+                    <Alert variant="destructive" className="mb-4">
+                      <AlertCircle className="h-4 w-4 mr-1" />
+                      <AlertDescription>{virtualMediaRecorderError}</AlertDescription>
+                    </Alert>
+                  )}
+                  {virtualAudioDebug && (
+                    <div className="mb-4 rounded bg-slate-900/90 border border-slate-700 px-4 py-3 text-xs text-slate-200">
+                      <span className="font-bold text-purple-400 mr-2">Virtual Audio Debug</span>
                       <div>
                         <div>Stream active: <span className={virtualAudioDebug.active ? "text-green-400" : "text-red-400"}>{String(virtualAudioDebug.active)}</span></div>
                         <div>Tracks: {virtualAudioDebug.trackCount}</div>
@@ -755,46 +531,27 @@ const JoinMeeting = () => {
                           </div>
                         ))}
                       </div>
-                    ) : (
-                      <div className="text-red-400">No virtual audio stream assigned</div>
-                    )}
-                  </div>
-                </div>
-              )}
-              <VirtualAudioSetup
-                onDeviceSelected={handleVirtualDeviceSelected}
-                onSetupComplete={handleVirtualAudioSetupComplete}
-              />
-              {virtualMediaRecorderError && (
-                <div className="mb-2 rounded bg-red-950/70 border border-red-700 px-4 py-2 text-xs text-red-300">
-                  <strong>Error:</strong> {virtualMediaRecorderError}
-                </div>
-              )}
-              {virtualAudioStream && (
-                <Card className="bg-white/10 backdrop-blur-md border-white/20 p-0">
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-white flex items-center gap-2">
-                        <Mic className="h-5 w-5 text-purple-400" />
-                        System Audio Transcription <span className="ml-2 text-xs text-purple-200">(10s chunks)</span>
-                      </CardTitle>
-                      <div className="flex gap-2">
+                    </div>
+                  )}
+                  {virtualAudioStream && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
                         <Button
                           onClick={toggleVirtualAudioTranscription}
                           variant={isVirtualRecording ? "destructive" : "default"}
                           size="sm"
                           className={isVirtualRecording ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}
-                          disabled={isVirtRecProcessing}
+                          disabled={isVirtRecProcessing || !virtualAudioStream}
                         >
                           {isVirtualRecording ? (
                             <>
                               <Square className="h-4 w-4 mr-2" />
-                              Stop
+                              Stop Transcription
                             </>
                           ) : (
                             <>
                               <Mic className="h-4 w-4 mr-2" />
-                              Start
+                              Start Transcription
                             </>
                           )}
                         </Button>
@@ -802,63 +559,65 @@ const JoinMeeting = () => {
                           <Badge className="bg-purple-800 text-white">Processing…</Badge>
                         )}
                       </div>
-                    </div>
-                    {virtRecError && (
-                      <Alert className="mt-3" variant="destructive">
-                        <AlertCircle className="h-4 w-4 mr-1" />
-                        <AlertDescription>{virtRecError}</AlertDescription>
-                      </Alert>
-                    )}
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="h-72 overflow-y-auto scrollbar-thin">
-                      {virtualAudioTranscripts.length === 0 ? (
-                        <div className="text-center text-slate-300 pt-14">No transcript yet. Start to capture system audio.</div>
-                      ) : (
-                        virtualAudioTranscripts.map((chunk, i) => (
-                          <div key={chunk.id} className="mb-3 p-3 rounded bg-white/10 border border-white/10">
-                            <span className="text-xs text-purple-300">Chunk #{i + 1}</span>
-                            {chunk.error ? (
-                              <p className="text-red-400">{chunk.error}</p>
-                            ) : (
-                              <p className="text-slate-200 whitespace-pre-line">{chunk.transcript}</p>
-                            )}
+                      {virtRecError && (
+                        <Alert variant="destructive" className="mt-3">
+                          <AlertCircle className="h-4 w-4 mr-1" />
+                          <AlertDescription>{virtRecError}</AlertDescription>
+                        </Alert>
+                      )}
+                      <div className="h-72 overflow-y-auto scrollbar-thin">
+                        {virtualAudioTranscripts.length === 0 ? (
+                          <div className="text-center text-slate-300 pt-14">
+                            No transcript yet. Start to capture system audio.
                           </div>
-                        ))
+                        ) : (
+                          virtualAudioTranscripts.map((chunk, i) => (
+                            <div key={chunk.id} className="mb-3 p-3 rounded bg-white/10 border border-white/10">
+                              {chunk.error ? (
+                                <p className="text-red-400">{chunk.error}</p>
+                              ) : (
+                                <p className="text-slate-200 whitespace-pre-line">{chunk.transcript}</p>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                      {virtualAudioTranscripts.length > 0 && (
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => {
+                              setVirtualAudioTranscripts([]);
+                              resetVirtRecording();
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="border-white/30 text-white"
+                          >
+                            Clear
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              const allChunks = virtualAudioTranscripts.map(t => t.transcript).join("\n");
+                              navigator.clipboard.writeText(allChunks);
+                              toast({
+                                title: "Copied",
+                                description: "Transcription copied to clipboard.",
+                              });
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="border-white/30 text-white"
+                          >
+                            Copy All
+                          </Button>
+                        </div>
                       )}
                     </div>
-                    {virtualAudioTranscripts.length > 0 && (
-                      <div className="flex gap-2 mt-3">
-                        <Button
-                          onClick={() => {
-                            setVirtualAudioTranscripts([]);
-                            resetVirtRecording();
-                          }}
-                          variant="outline"
-                          size="sm"
-                          className="border-white/30 text-white"
-                        >
-                          Clear
-                        </Button>
-                        <Button
-                          onClick={() => {
-                            const allChunks = virtualAudioTranscripts.map(t => t.transcript).join("\n");
-                            navigator.clipboard.writeText(allChunks);
-                          }}
-                          variant="outline"
-                          size="sm"
-                          className="border-white/30 text-white"
-                        >
-                          Copy All
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
-            {/* Upload Audio Mode */}
             <TabsContent value="upload" className="mt-6 md:mt-8">
               <Card className="bg-white/10 backdrop-blur-md border-white/20">
                 <CardHeader>
@@ -911,8 +670,7 @@ const JoinMeeting = () => {
           </div>
         </Tabs>
 
-        {/* Transcription Results */}
-        {(transcriptionResults.length > 0 || transcriptSegments.length > 0 || speakerSegments.length > 0) && (
+        {(transcriptionResults.length > 0 || speakerSegments.length > 0) && (
           <Card className="mt-7 md:mt-8 bg-white/10 backdrop-blur-md border-white/20">
             <CardHeader>
               <CardTitle className="text-white text-lg md:text-xl">Transcription Results</CardTitle>
@@ -921,7 +679,7 @@ const JoinMeeting = () => {
               <div className="space-y-3 md:space-y-4">
                 {speakerSegments.length > 0 ? (
                   speakerSegments.map((segment, index) => (
-                    <div key={index} className="bg-white/5 rounded-lg p-3 md:p-4 border border-white/10 overflow-x-auto">
+                    <div key={segment.id} className="bg-white/5 rounded-lg p-3 md:p-4 border border-white/10 overflow-x-auto">
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-1 md:mb-2">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-medium text-purple-400">{segment.speaker}</span>
@@ -956,24 +714,27 @@ const JoinMeeting = () => {
                 </Button>
                 <Button
                   onClick={() => {
-                    const transcriptText = transcriptSegments.length > 0
-                      ? transcriptSegments.map(s => `[${s.timestamp}] ${s.speaker}: ${s.text}`).join('\n')
-                      : transcriptionResults.join(' ');
+                    const transcriptText = speakerSegments.length > 0
+                      ? speakerSegments.map(s => `[${s.speaker}]: ${s.text}`).join('\n')
+                      : transcriptionResults.join('\n');
                     navigator.clipboard.writeText(transcriptText);
+                    toast({
+                      title: "Copied",
+                      description: "Transcription copied to clipboard.",
+                    });
                   }}
                   variant="outline"
-                  className="border-white/30 hover:bg-white/10 text-slate-950 px-3 py-2"
+                  className="bg-white/10 border-white/30 hover:bg-white/50 text-white px-3 py-2"
                 >
                   Copy All
                 </Button>
                 <Button
                   onClick={() => {
                     setTranscriptionResults([]);
-                    setTranscriptSegments([]);
                     setSpeakerSegments([]);
                   }}
                   variant="outline"
-                  className="border-white/30 hover:bg-white/10 text-slate-950 px-3 py-2"
+                  className="bg-white/10 border-white/30 hover:bg-white/50 text-white px-3 py-2"
                 >
                   Clear
                 </Button>
@@ -987,5 +748,3 @@ const JoinMeeting = () => {
 };
 
 export default JoinMeeting;
-// This file is now very long (>870 lines).
-// Consider refactoring into smaller hooks/components for maintainability!

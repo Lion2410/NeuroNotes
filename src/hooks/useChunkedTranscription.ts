@@ -42,7 +42,7 @@ export function useChunkedTranscription({
       try {
         const formData = new FormData();
         formData.append("audio", chunkBlob, "audio.webm");
-
+        console.log("using virtual audio");
         const response = await fetch(
           "https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio",
           {
