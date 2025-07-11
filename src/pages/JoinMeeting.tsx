@@ -15,7 +15,6 @@ import AudioRecorder from '@/components/AudioRecorder';
 import { useChunkedTranscription, ChunkTranscript } from "@/hooks/useChunkedTranscription";
 import { Badge } from '@/components/ui/badge';
 import { VirtualAudioDevice } from '@/utils/VirtualAudioDriver';
-
 interface TranscriptSegment {
   id: string;
   timestamp: string;
@@ -23,7 +22,6 @@ interface TranscriptSegment {
   text: string;
   confidence: number;
 }
-
 const JoinMeeting = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [transcriptionResults, setTranscriptionResults] = useState<string[]>([]);
@@ -42,29 +40,29 @@ const JoinMeeting = () => {
   const [virtualMediaRecorderError, setVirtualMediaRecorderError] = useState<string | null>(null);
   const [virtualAudioDebug, setVirtualAudioDebug] = useState<any>(null);
   const [meetingMode, setMeetingMode] = useState<'audio' | 'virtual' | 'upload'>('audio');
-
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-
-  const { user, session } = useAuth();
-  const { toast } = useToast();
-
+  const {
+    user,
+    session
+  } = useAuth();
+  const {
+    toast
+  } = useToast();
   const authToken = session?.access_token;
-
   const {
     isRecording: isVirtRecActive,
     isProcessing: isVirtRecProcessing,
     error: virtRecError,
     chunks: virtTranscripts,
     stop: stopVirtRecording,
-    reset: resetVirtRecording,
+    reset: resetVirtRecording
   } = useChunkedTranscription({
     stream: virtualAudioStream,
     isActive: isVirtualRecording,
     authToken,
-    onTranscriptsUpdate: setVirtualAudioTranscripts,
+    onTranscriptsUpdate: setVirtualAudioTranscripts
   });
-
   useEffect(() => {
     setVirtualMediaRecorderError(null);
     setIsVirtualRecording(false);
@@ -81,18 +79,16 @@ const JoinMeeting = () => {
           readyState: t.readyState,
           muted: (t as any)?.muted,
           id: t.id
-        })),
+        }))
       });
     } else {
       setVirtualAudioDebug(null);
     }
   }, [virtualAudioStream, resetVirtRecording]);
-
   const handleVirtualDeviceSelected = (device: VirtualAudioDevice) => {
     setSelectedVirtualDevice(device);
     console.log('Selected virtual audio device:', device);
   };
-
   const handleVirtualAudioSetupComplete = (stream: MediaStream) => {
     console.log("[VirtualAudio] Setup complete. Stream details:", {
       active: stream?.active,
@@ -104,22 +100,20 @@ const JoinMeeting = () => {
         muted: (t as any)?.muted,
         id: t.id
       })),
-      constraints: stream?.getAudioTracks()[0]?.getSettings?.(),
+      constraints: stream?.getAudioTracks()[0]?.getSettings?.()
     });
     setVirtualAudioStream(stream);
     toast({
       title: "Virtual Audio Ready",
-      description: "Ready to capture meeting audio for transcription",
+      description: "Ready to capture meeting audio for transcription"
     });
     if (!stream) {
       setVirtualMediaRecorderError("MediaStream is null after setup!");
       console.error("[VirtualAudio] Setup returned a null stream.");
     }
   };
-
   const toggleVirtualAudioTranscription = () => {
     console.log("[VirtualAudio] toggleVirtualAudioTranscription called, isVirtualRecording:", isVirtualRecording);
-
     if (isVirtualRecording) {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
@@ -130,119 +124,109 @@ const JoinMeeting = () => {
       console.log("[VirtualAudio] Stopped transcription");
       toast({
         title: "Virtual Audio Stopped",
-        description: "Transcription has been stopped.",
+        description: "Transcription has been stopped."
       });
       return;
     }
-
     if (!virtualAudioStream) {
       setVirtualMediaRecorderError("Virtual audio stream unavailable!");
       toast({
         title: "Audio Device Error",
         description: "No virtual audio stream is active. Please select and set up a device first.",
-        variant: "destructive",
+        variant: "destructive"
       });
       console.error("[VirtualAudio] No virtual audio stream available");
       return;
     }
-
     const tracks = virtualAudioStream.getTracks();
     if (!tracks.length) {
       setVirtualMediaRecorderError("No media tracks present in virtual audio stream.");
       toast({
         title: "Audio Device Error",
         description: "No audio tracks found on selected virtual stream.",
-        variant: "destructive",
+        variant: "destructive"
       });
       console.error("[VirtualAudio] No tracks in virtual audio stream");
       return;
     }
-
     const audioTrack = virtualAudioStream.getAudioTracks()[0];
     if (!audioTrack || audioTrack.readyState !== 'live') {
       setVirtualMediaRecorderError("No active audio track found in stream!");
       toast({
         title: "Audio Track Error",
         description: "The selected audio device is not providing an active audio track.",
-        variant: "destructive",
+        variant: "destructive"
       });
       console.error("[VirtualAudio] No active audio track:", audioTrack);
       return;
     }
-
     setVirtualMediaRecorderError(null);
     setVirtualAudioTranscripts([]);
     resetVirtRecording();
-
     let recorder: MediaRecorder | null = null;
     const mimeTypes = ["audio/webm;codecs=opus", "audio/webm", ""];
     let codecTried = "";
-
     for (const mimeType of mimeTypes) {
       try {
         codecTried = mimeType || "default";
-        recorder = new MediaRecorder(virtualAudioStream, mimeType ? { mimeType } : {});
+        recorder = new MediaRecorder(virtualAudioStream, mimeType ? {
+          mimeType
+        } : {});
         console.log("[VirtualAudio] MediaRecorder created with", codecTried);
         break;
       } catch (err) {
         console.warn(`[VirtualAudio] Failed to create MediaRecorder with ${codecTried}:`, err);
       }
     }
-
     if (!recorder) {
       setVirtualMediaRecorderError("Failed to create MediaRecorder with any supported mimeType.");
       toast({
         title: "MediaRecorder Error",
         description: "Cannot record from selected audio device: unsupported format.",
-        variant: "destructive",
+        variant: "destructive"
       });
       console.error("[VirtualAudio] Failed to create MediaRecorder with any mimeType");
       return;
     }
-
     mediaRecorderRef.current = recorder;
-    mediaRecorderRef.current.ondataavailable = (event) => {
+    mediaRecorderRef.current.ondataavailable = event => {
       if (event.data.size > 0) {
         audioChunksRef.current.push(event.data);
         console.log("[VirtualAudio] Audio chunk captured, size:", event.data.size);
       }
     };
-
     mediaRecorderRef.current.onstop = () => {
       console.log("[VirtualAudio] MediaRecorder stopped, chunks collected:", audioChunksRef.current.length);
       audioChunksRef.current = [];
     };
-
-    mediaRecorderRef.current.onerror = (event) => {
+    mediaRecorderRef.current.onerror = event => {
       const error = (event as any).error || "Unknown MediaRecorder error";
       setVirtualMediaRecorderError(`MediaRecorder error: ${error}`);
       toast({
         title: "Recording Error",
         description: `Failed to record audio: ${error}`,
-        variant: "destructive",
+        variant: "destructive"
       });
       console.error("[VirtualAudio] MediaRecorder error:", error);
     };
-
     try {
       mediaRecorderRef.current.start(10000);
       setIsVirtualRecording(true);
       console.log("[VirtualAudio] Started transcription with", codecTried);
       toast({
         title: "Virtual Audio Started",
-        description: "Capturing system audio for transcription.",
+        description: "Capturing system audio for transcription."
       });
     } catch (err) {
       setVirtualMediaRecorderError(`Failed to start MediaRecorder: ${err}`);
       toast({
         title: "Recording Error",
         description: `Cannot start recording: ${err}`,
-        variant: "destructive",
+        variant: "destructive"
       });
       console.error("[VirtualAudio] Failed to start MediaRecorder:", err);
     }
   };
-
   const handleFileUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFile) {
@@ -253,12 +237,10 @@ const JoinMeeting = () => {
       });
       return;
     }
-    
     setLoading(true);
     try {
       const formData = new FormData();
       formData.append('audio', selectedFile);
-      
       const response = await fetch('https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio', {
         method: 'POST',
         headers: {
@@ -266,11 +248,9 @@ const JoinMeeting = () => {
         },
         body: formData
       });
-
       if (!response.ok) {
         throw new Error('Transcription failed');
       }
-
       const result = await response.json();
       if (result.transcript) {
         setTranscriptionResults([result.transcript]);
@@ -289,7 +269,6 @@ const JoinMeeting = () => {
       setLoading(false);
     }
   };
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -304,13 +283,9 @@ const JoinMeeting = () => {
       }
     }
   };
-
   const handleSaveTranscription = async () => {
     console.log("Trying to save transcription result");
-    const transcriptToSave = speakerSegments.length > 0 
-      ? speakerSegments.map(s => `${s.text}`).join('\n')
-      : transcriptionResults.join('\n');
-
+    const transcriptToSave = speakerSegments.length > 0 ? speakerSegments.map(s => `${s.text}`).join('\n') : transcriptionResults.join('\n');
     if (!transcriptToSave.trim() || !user) {
       toast({
         title: "Nothing to Save",
@@ -319,30 +294,24 @@ const JoinMeeting = () => {
       });
       return;
     }
-
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('transcriptions')
-        .insert({
-          user_id: user.id,
-          title: meetingMode === 'audio'
-            ? audioCaptureTitle
-            : selectedFile?.name || selectedVirtualDevice?.label || 'Live Meeting Transcription',
-          content: transcriptToSave,
-          source_type: selectedFile ? 'upload' : meetingMode === 'audio' ? 'audio_capture' : 'meeting',
-          audio_url: null,
-          meeting_url: null,
-          duration: null
-        });
-
+      const {
+        error
+      } = await supabase.from('transcriptions').insert({
+        user_id: user.id,
+        title: meetingMode === 'audio' ? audioCaptureTitle : selectedFile?.name || selectedVirtualDevice?.label || 'Live Meeting Transcription',
+        content: transcriptToSave,
+        source_type: selectedFile ? 'upload' : meetingMode === 'audio' ? 'audio_capture' : 'meeting',
+        audio_url: null,
+        meeting_url: null,
+        duration: null
+      });
       if (error) throw error;
-
       toast({
         title: "Transcription Saved",
         description: "Your transcription has been saved to your notes."
       });
-
       setTranscriptionResults([]);
       setSpeakerSegments([]);
       setSelectedFile(null);
@@ -358,7 +327,6 @@ const JoinMeeting = () => {
       setSaving(false);
     }
   };
-
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'connected':
@@ -371,9 +339,7 @@ const JoinMeeting = () => {
         return null;
     }
   };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
+  return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-black">
       <header className="px-4 md:px-6 py-4 bg-white/10 backdrop-blur-md border-b border-white/20">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center space-x-2 sm:space-x-4">
@@ -397,38 +363,21 @@ const JoinMeeting = () => {
           <p className="text-base md:text-xl text-slate-300">Capture audio live (microphone or virtual) or upload audio for transcription</p>
         </div>
 
-        <Tabs
-          value={meetingMode}
-          onValueChange={(val) => setMeetingMode(val as 'audio' | 'virtual' | 'upload')}
-          defaultValue="audio"
-          className="w-full"
-        >
-          <TabsList
-            className="grid w-full grid-cols-3 bg-white/10 border-white/20 text-xs md:text-base mb-3 fixed bottom-0 left-0 right-0 z-20 md:static md:mb-0"
-            style={{
-              maxWidth: "100vw",
-              borderRadius: 0,
-              boxShadow: "0 -2px 16px 0 rgba(60,0,120,0.05)",
-              marginLeft: 0,
-              marginRight: 0
-            }}
-          >
-            <TabsTrigger
-              value="audio"
-              className="py-3 data-[state=active]:bg-purple-600 data-[state=active]:text-white"
-            >
+        <Tabs value={meetingMode} onValueChange={val => setMeetingMode(val as 'audio' | 'virtual' | 'upload')} defaultValue="audio" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 bg-white/10 border-white/20 text-xs md:text-base mb-3 fixed bottom-0 left-0 right-0 z-20 md:static md:mb-0" style={{
+          maxWidth: "100vw",
+          borderRadius: 0,
+          boxShadow: "0 -2px 16px 0 rgba(60,0,120,0.05)",
+          marginLeft: 0,
+          marginRight: 0
+        }}>
+            <TabsTrigger value="audio" className="py-3 data-[state=active]:bg-purple-600 data-[state=active]:text-white">
               Audio Capture
             </TabsTrigger>
-            <TabsTrigger
-              value="virtual"
-              className="py-3 data-[state=active]:bg-purple-600 data-[state=active]:text-white"
-            >
+            <TabsTrigger value="virtual" className="py-3 data-[state=active]:bg-purple-600 data-[state=active]:text-white">
               Virtual Audio
             </TabsTrigger>
-            <TabsTrigger
-              value="upload"
-              className="py-3 data-[state=active]:bg-purple-600 data-[state=active]:text-white"
-            >
+            <TabsTrigger value="upload" className="py-3 data-[state=active]:bg-purple-600 data-[state=active]:text-white">
               Upload Audio
             </TabsTrigger>
           </TabsList>
@@ -443,57 +392,37 @@ const JoinMeeting = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <form
-                    onSubmit={(e) => e.preventDefault()}
-                    className="space-y-5 md:space-y-6"
-                  >
+                  <form onSubmit={e => e.preventDefault()} className="space-y-5 md:space-y-6">
                     <div className="space-y-2 mb-7">
                       <Label htmlFor="note-title" className="text-white">Title</Label>
-                      <Input
-                        id="note-title"
-                        type="text"
-                        placeholder="Enter a descriptive note title"
-                        value={audioCaptureTitle}
-                        onChange={(e) => setAudioCaptureTitle(e.target.value)}
-                        className="bg-white/10 border-white/20 text-white placeholder:text-slate-400"
-                        required
-                        disabled={isRecording}
-                      />
+                      <Input id="note-title" type="text" placeholder="Enter a descriptive note title" value={audioCaptureTitle} onChange={e => setAudioCaptureTitle(e.target.value)} className="bg-white/10 border-white/20 text-white placeholder:text-slate-400" required disabled={isRecording} />
                       <p className="text-xs md:text-sm text-slate-400">
                         The title will be used to save your transcription note.
                       </p>
                     </div>
                   </form>
-                  <AudioRecorder
-                    onTranscription={(chunkText) => {
-                      setLiveTranscript(prev => prev + (chunkText ? "\n" + chunkText : ""));
-                    }}
-                    onFinalized={(fullText, segmentsArr) => {
-                      const newSegments = segmentsArr.map((seg, index) => ({
-                        id: `seg-${index}`,
-                        timestamp: new Date().toISOString(),
-                        speaker: seg.speaker || 'Unknown',
-                        text: seg.text,
-                        confidence: seg.confidence
-                      }));
-                      setSpeakerSegments(newSegments);
-                      setTranscriptionResults([fullText]);
-                      setLiveTranscript('');
-                    }}
-                    isRecording={isRecording}
-                    setIsRecording={setIsRecording}
-                    disabled={!audioCaptureTitle.trim()}
-                  />
-                  {isRecording && (
-                    <div className="mt-4 md:mt-6">
+                  <AudioRecorder onTranscription={chunkText => {
+                  setLiveTranscript(prev => prev + (chunkText ? "\n" + chunkText : ""));
+                }} onFinalized={(fullText, segmentsArr) => {
+                  const newSegments = segmentsArr.map((seg, index) => ({
+                    id: `seg-${index}`,
+                    timestamp: new Date().toISOString(),
+                    speaker: seg.speaker || 'Unknown',
+                    text: seg.text,
+                    confidence: seg.confidence
+                  }));
+                  setSpeakerSegments(newSegments);
+                  setTranscriptionResults([fullText]);
+                  setLiveTranscript('');
+                }} isRecording={isRecording} setIsRecording={setIsRecording} disabled={!audioCaptureTitle.trim()} />
+                  {isRecording && <div className="mt-4 md:mt-6">
                       <h3 className="text-white font-semibold mb-2 md:mb-3">Live Transcript</h3>
                       <div className="bg-white/5 rounded-lg p-3 md:p-4 border border-white/10 min-h-[70px] max-h-52 md:max-h-[300px] overflow-y-auto">
                         <p className="text-slate-300 leading-relaxed text-xs md:text-base break-words whitespace-pre-line">
                           {liveTranscript || "Listening..."}
                         </p>
                       </div>
-                    </div>
-                  )}
+                    </div>}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -507,113 +436,66 @@ const JoinMeeting = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <VirtualAudioSetup
-                    onDeviceSelected={handleVirtualDeviceSelected}
-                    onSetupComplete={handleVirtualAudioSetupComplete}
-                  />
-                  {virtualMediaRecorderError && (
-                    <Alert variant="destructive" className="mb-4">
+                  <VirtualAudioSetup onDeviceSelected={handleVirtualDeviceSelected} onSetupComplete={handleVirtualAudioSetupComplete} />
+                  {virtualMediaRecorderError && <Alert variant="destructive" className="mb-4">
                       <AlertCircle className="h-4 w-4 mr-1" />
                       <AlertDescription>{virtualMediaRecorderError}</AlertDescription>
-                    </Alert>
-                  )}
-                  {virtualAudioDebug && (
-                    <div className="mb-4 rounded bg-slate-900/90 border border-slate-700 px-4 py-3 text-xs text-slate-200">
+                    </Alert>}
+                  {virtualAudioDebug && <div className="mb-4 rounded bg-slate-900/90 border border-slate-700 px-4 py-3 text-xs text-slate-200">
                       <span className="font-bold text-purple-400 mr-2">Virtual Audio Debug</span>
                       <div>
                         <div>Stream active: <span className={virtualAudioDebug.active ? "text-green-400" : "text-red-400"}>{String(virtualAudioDebug.active)}</span></div>
                         <div>Tracks: {virtualAudioDebug.trackCount}</div>
-                        {virtualAudioDebug.tracks.map((track: any, idx: number) => (
-                          <div key={track.id || idx} className="ml-2">
+                        {virtualAudioDebug.tracks.map((track: any, idx: number) => <div key={track.id || idx} className="ml-2">
                             {track.kind} (id={track.id}) enabled: <span className={track.enabled ? "text-green-400" : "text-red-400"}>{String(track.enabled)}</span>
                             , readyState: {track.readyState}
                             {typeof track.muted !== "undefined" && <>, muted: {String(track.muted)}</>}
-                          </div>
-                        ))}
+                          </div>)}
                       </div>
-                    </div>
-                  )}
-                  {virtualAudioStream && (
-                    <div className="space-y-4">
+                    </div>}
+                  {virtualAudioStream && <div className="space-y-4">
                       <div className="flex items-center gap-2">
-                        <Button
-                          onClick={toggleVirtualAudioTranscription}
-                          variant={isVirtualRecording ? "destructive" : "default"}
-                          size="sm"
-                          className={isVirtualRecording ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}
-                          disabled={isVirtRecProcessing || !virtualAudioStream}
-                        >
-                          {isVirtualRecording ? (
-                            <>
+                        <Button onClick={toggleVirtualAudioTranscription} variant={isVirtualRecording ? "destructive" : "default"} size="sm" className={isVirtualRecording ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"} disabled={isVirtRecProcessing || !virtualAudioStream}>
+                          {isVirtualRecording ? <>
                               <Square className="h-4 w-4 mr-2" />
                               Stop Transcription
-                            </>
-                          ) : (
-                            <>
+                            </> : <>
                               <Mic className="h-4 w-4 mr-2" />
                               Start Transcription
-                            </>
-                          )}
+                            </>}
                         </Button>
-                        {isVirtRecProcessing && (
-                          <Badge className="bg-purple-800 text-white">Processing…</Badge>
-                        )}
+                        {isVirtRecProcessing && <Badge className="bg-purple-800 text-white">Processing…</Badge>}
                       </div>
-                      {virtRecError && (
-                        <Alert variant="destructive" className="mt-3">
+                      {virtRecError && <Alert variant="destructive" className="mt-3">
                           <AlertCircle className="h-4 w-4 mr-1" />
                           <AlertDescription>{virtRecError}</AlertDescription>
-                        </Alert>
-                      )}
+                        </Alert>}
                       <div className="h-72 overflow-y-auto scrollbar-thin">
-                        {virtualAudioTranscripts.length === 0 ? (
-                          <div className="text-center text-slate-300 pt-14">
+                        {virtualAudioTranscripts.length === 0 ? <div className="text-center text-slate-300 pt-14">
                             No transcript yet. Start to capture system audio.
-                          </div>
-                        ) : (
-                          virtualAudioTranscripts.map((chunk, i) => (
-                            <div key={chunk.id} className="mb-3 p-3 rounded bg-white/10 border border-white/10">
-                              {chunk.error ? (
-                                <p className="text-red-400">{chunk.error}</p>
-                              ) : (
-                                <p className="text-slate-200 whitespace-pre-line">{chunk.transcript}</p>
-                              )}
-                            </div>
-                          ))
-                        )}
+                          </div> : virtualAudioTranscripts.map((chunk, i) => <div key={chunk.id} className="mb-3 p-3 rounded bg-white/10 border border-white/10">
+                              {chunk.error ? <p className="text-red-400">{chunk.error}</p> : <p className="text-slate-200 whitespace-pre-line">{chunk.transcript}</p>}
+                            </div>)}
                       </div>
-                      {virtualAudioTranscripts.length > 0 && (
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={() => {
-                              setVirtualAudioTranscripts([]);
-                              resetVirtRecording();
-                            }}
-                            variant="outline"
-                            size="sm"
-                            className="border-white/30 text-white"
-                          >
+                      {virtualAudioTranscripts.length > 0 && <div className="flex gap-2">
+                          <Button onClick={() => {
+                      setVirtualAudioTranscripts([]);
+                      resetVirtRecording();
+                    }} variant="outline" size="sm" className="border-white/30 text-slate-950">
                             Clear
                           </Button>
-                          <Button
-                            onClick={() => {
-                              const allChunks = virtualAudioTranscripts.map(t => t.transcript).join("\n");
-                              navigator.clipboard.writeText(allChunks);
-                              toast({
-                                title: "Copied",
-                                description: "Transcription copied to clipboard.",
-                              });
-                            }}
-                            variant="outline"
-                            size="sm"
-                            className="border-white/30 text-white"
-                          >
+                          <Button onClick={() => {
+                      const allChunks = virtualAudioTranscripts.map(t => t.transcript).join("\n");
+                      navigator.clipboard.writeText(allChunks);
+                      toast({
+                        title: "Copied",
+                        description: "Transcription copied to clipboard."
+                      });
+                    }} variant="outline" size="sm" className="border-white/30 text-slate-950">
                             Copy All
                           </Button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                        </div>}
+                    </div>}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -632,13 +514,7 @@ const JoinMeeting = () => {
                     <div className="space-y-2">
                       <Label htmlFor="audio-file" className="text-white">Audio File</Label>
                       <div className="border-2 border-dashed border-white/20 rounded-lg p-5 md:p-8 text-center hover:border-purple-400 transition-colors">
-                        <input
-                          id="audio-file"
-                          type="file"
-                          accept="audio/*"
-                          onChange={handleFileChange}
-                          className="hidden"
-                        />
+                        <input id="audio-file" type="file" accept="audio/*" onChange={handleFileChange} className="hidden" />
                         <label htmlFor="audio-file" className="cursor-pointer flex flex-col items-center gap-3 md:gap-4">
                           <Upload className="h-8 w-8 md:h-12 md:w-12 text-slate-400" />
                           <div>
@@ -650,18 +526,13 @@ const JoinMeeting = () => {
                         </label>
                       </div>
                     </div>
-                    <Button
-                      type="submit"
-                      disabled={loading || !selectedFile}
-                      className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-3 py-4 text-base md:text-lg"
-                      style={{ minHeight: 48 }}
-                    >
-                      {loading ? 'Processing...' : (
-                        <>
+                    <Button type="submit" disabled={loading || !selectedFile} className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-3 py-4 text-base md:text-lg" style={{
+                    minHeight: 48
+                  }}>
+                      {loading ? 'Processing...' : <>
                           <Upload className="h-5 w-5 mr-2" />
                           Start Transcription
-                        </>
-                      )}
+                        </>}
                     </Button>
                   </form>
                 </CardContent>
@@ -670,16 +541,13 @@ const JoinMeeting = () => {
           </div>
         </Tabs>
 
-        {(transcriptionResults.length > 0 || speakerSegments.length > 0) && (
-          <Card className="mt-7 md:mt-8 bg-white/10 backdrop-blur-md border-white/20">
+        {(transcriptionResults.length > 0 || speakerSegments.length > 0) && <Card className="mt-7 md:mt-8 bg-white/10 backdrop-blur-md border-white/20">
             <CardHeader>
               <CardTitle className="text-white text-lg md:text-xl">Transcription Results</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3 md:space-y-4">
-                {speakerSegments.length > 0 ? (
-                  speakerSegments.map((segment, index) => (
-                    <div key={segment.id} className="bg-white/5 rounded-lg p-3 md:p-4 border border-white/10 overflow-x-auto">
+                {speakerSegments.length > 0 ? speakerSegments.map((segment, index) => <div key={segment.id} className="bg-white/5 rounded-lg p-3 md:p-4 border border-white/10 overflow-x-auto">
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-1 md:mb-2">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-medium text-purple-400">{segment.speaker}</span>
@@ -689,62 +557,37 @@ const JoinMeeting = () => {
                         </span>
                       </div>
                       <p className="text-slate-300 leading-relaxed text-xs md:text-base break-words">{segment.text}</p>
-                    </div>
-                  ))
-                ) : (
-                  transcriptionResults.map((text, index) => (
-                    <div key={index} className="bg-white/5 rounded-lg p-3 md:p-4 border border-white/10 overflow-x-auto">
+                    </div>) : transcriptionResults.map((text, index) => <div key={index} className="bg-white/5 rounded-lg p-3 md:p-4 border border-white/10 overflow-x-auto">
                       <p className="text-slate-300 leading-relaxed text-xs md:text-base break-words">{text}</p>
-                    </div>
-                  ))
-                )}
+                    </div>)}
               </div>
               <div className="mt-3 md:mt-4 flex flex-col md:flex-row gap-2">
-                <Button
-                  onClick={handleSaveTranscription}
-                  disabled={saving}
-                  className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-3 py-2"
-                >
-                  {saving ? 'Saving...' : (
-                    <>
+                <Button onClick={handleSaveTranscription} disabled={saving} className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-3 py-2">
+                  {saving ? 'Saving...' : <>
                       <Save className="h-4 w-4 mr-2" />
                       Save to Notes
-                    </>
-                  )}
+                    </>}
                 </Button>
-                <Button
-                  onClick={() => {
-                    const transcriptText = speakerSegments.length > 0
-                      ? speakerSegments.map(s => `[${s.speaker}]: ${s.text}`).join('\n')
-                      : transcriptionResults.join('\n');
-                    navigator.clipboard.writeText(transcriptText);
-                    toast({
-                      title: "Copied",
-                      description: "Transcription copied to clipboard.",
-                    });
-                  }}
-                  variant="outline"
-                  className="bg-white/10 border-white/30 hover:bg-white/50 text-white px-3 py-2"
-                >
+                <Button onClick={() => {
+              const transcriptText = speakerSegments.length > 0 ? speakerSegments.map(s => `[${s.speaker}]: ${s.text}`).join('\n') : transcriptionResults.join('\n');
+              navigator.clipboard.writeText(transcriptText);
+              toast({
+                title: "Copied",
+                description: "Transcription copied to clipboard."
+              });
+            }} variant="outline" className="bg-white/10 border-white/30 hover:bg-white/50 text-white px-3 py-2">
                   Copy All
                 </Button>
-                <Button
-                  onClick={() => {
-                    setTranscriptionResults([]);
-                    setSpeakerSegments([]);
-                  }}
-                  variant="outline"
-                  className="bg-white/10 border-white/30 hover:bg-white/50 text-white px-3 py-2"
-                >
+                <Button onClick={() => {
+              setTranscriptionResults([]);
+              setSpeakerSegments([]);
+            }} variant="outline" className="bg-white/10 border-white/30 hover:bg-white/50 text-white px-3 py-2">
                   Clear
                 </Button>
               </div>
             </CardContent>
-          </Card>
-        )}
+          </Card>}
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default JoinMeeting;
