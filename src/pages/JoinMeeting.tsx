@@ -31,6 +31,7 @@ const JoinMeeting = () => {
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [loading, setLoading] = useState(false);
   const [audioCaptureTitle, setAudioCaptureTitle] = useState('');
+  const [virtualAudioTitle, setVirtualAudioTitle] = useState('');
   const [microphonePermError, setMicrophonePermError] = useState<string | null>(null);
   const [speakerSegments, setSpeakerSegments] = useState<TranscriptSegment[]>([]);
   const [selectedVirtualDevice, setSelectedVirtualDevice] = useState<VirtualAudioDevice | null>(null);
@@ -55,6 +56,8 @@ const JoinMeeting = () => {
     isProcessing: isVirtRecProcessing,
     error: virtRecError,
     chunks: virtTranscripts,
+    combinedTranscript,
+    finalTranscript,
     stop: stopVirtRecording,
     reset: resetVirtRecording
   } = useChunkedTranscription({
@@ -67,6 +70,7 @@ const JoinMeeting = () => {
     setVirtualMediaRecorderError(null);
     setIsVirtualRecording(false);
     setVirtualAudioTranscripts([]);
+    setVirtualAudioTitle('');
     resetVirtRecording();
     if (virtualAudioStream) {
       console.log("[VirtualAudio] New stream attached:", virtualAudioStream);
@@ -112,16 +116,27 @@ const JoinMeeting = () => {
       console.error("[VirtualAudio] Setup returned a null stream.");
     }
   };
+<<<<<<< HEAD
   const toggleVirtualAudioTranscription = () => {
+=======
+
+  const toggleVirtualAudioTranscription = async () => {
+>>>>>>> 2a1f751 (Fixed Audio capture and  Virtual Audio in JoinMeeting.tsx)
     console.log("[VirtualAudio] toggleVirtualAudioTranscription called, isVirtualRecording:", isVirtualRecording);
     if (isVirtualRecording) {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-        mediaRecorderRef.current = null;
-      }
-      stopVirtRecording();
+      const final = await stopVirtRecording();
       setIsVirtualRecording(false);
-      console.log("[VirtualAudio] Stopped transcription");
+      console.log("[VirtualAudio] Stopped transcription, finalTranscript:", final);
+      if (final) {
+        setTranscriptionResults([final]);
+      } else {
+        console.warn("[VirtualAudio] No final transcript available");
+        toast({
+          title: "No Transcript",
+          description: "No valid transcription was generated.",
+          variant: "destructive",
+        });
+      }
       toast({
         title: "Virtual Audio Stopped",
         description: "Transcription has been stopped."
@@ -138,6 +153,20 @@ const JoinMeeting = () => {
       console.error("[VirtualAudio] No virtual audio stream available");
       return;
     }
+<<<<<<< HEAD
+=======
+
+    if (!virtualAudioTitle.trim()) {
+      toast({
+        title: "Title Required",
+        description: "Please enter a title for your transcription.",
+        variant: "destructive",
+      });
+      console.error("[VirtualAudio] No title provided");
+      return;
+    }
+
+>>>>>>> 2a1f751 (Fixed Audio capture and  Virtual Audio in JoinMeeting.tsx)
     const tracks = virtualAudioStream.getTracks();
     if (!tracks.length) {
       setVirtualMediaRecorderError("No media tracks present in virtual audio stream.");
@@ -163,6 +192,7 @@ const JoinMeeting = () => {
     setVirtualMediaRecorderError(null);
     setVirtualAudioTranscripts([]);
     resetVirtRecording();
+<<<<<<< HEAD
     let recorder: MediaRecorder | null = null;
     const mimeTypes = ["audio/webm;codecs=opus", "audio/webm", ""];
     let codecTried = "";
@@ -226,6 +256,15 @@ const JoinMeeting = () => {
       });
       console.error("[VirtualAudio] Failed to start MediaRecorder:", err);
     }
+=======
+    setTranscriptionResults([]);
+    setIsVirtualRecording(true);
+    console.log("[VirtualAudio] Started transcription");
+    toast({
+      title: "Virtual Audio Started",
+      description: "Capturing system audio for transcription.",
+    });
+>>>>>>> 2a1f751 (Fixed Audio capture and  Virtual Audio in JoinMeeting.tsx)
   };
   const handleFileUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -286,6 +325,10 @@ const JoinMeeting = () => {
   const handleSaveTranscription = async () => {
     console.log("Trying to save transcription result");
     const transcriptToSave = speakerSegments.length > 0 ? speakerSegments.map(s => `${s.text}`).join('\n') : transcriptionResults.join('\n');
+    const transcriptToSave = speakerSegments.length > 0 
+      ? speakerSegments.map(s => s.text).join(' ')
+      : transcriptionResults.join(' ');
+
     if (!transcriptToSave.trim() || !user) {
       toast({
         title: "Nothing to Save",
@@ -307,6 +350,22 @@ const JoinMeeting = () => {
         meeting_url: null,
         duration: null
       });
+      const { error } = await supabase
+        .from('transcriptions')
+        .insert({
+          user_id: user.id,
+          title: meetingMode === 'audio'
+            ? audioCaptureTitle
+            : meetingMode === 'virtual'
+            ? virtualAudioTitle
+            : selectedFile?.name || 'Uploaded Audio Transcription',
+          content: transcriptToSave,
+          source_type: selectedFile ? 'upload' : meetingMode === 'audio' ? 'audio_capture' : 'meeting',
+          audio_url: null,
+          meeting_url: null,
+          duration: null
+        });
+
       if (error) throw error;
       toast({
         title: "Transcription Saved",
@@ -316,6 +375,7 @@ const JoinMeeting = () => {
       setSpeakerSegments([]);
       setSelectedFile(null);
       setAudioCaptureTitle('');
+      setVirtualAudioTitle('');
       setLiveTranscript('');
     } catch (error: any) {
       toast({
@@ -347,7 +407,7 @@ const JoinMeeting = () => {
               <ArrowLeft className="h-5 w-5 md:h-6 md:w-6" />
             </Link>
             <div className="flex items-center space-x-2">
-              <img src="/lovable-Uploads/a5a042c4-e054-4df2-b3b5-8ae8386c5f2b.png" alt="NeuroNotes" className="h-9 w-auto sm:h-12" />
+              <img src="https://musical-space-spoon-pqwq96644xf7gpv-8080.app.github.dev/lovable-uploads/a5a042c4-e054-4df2-b3b5-8ae8386c5f2b.png" alt="NeuroNotes" className="h-9 w-auto sm:h-12" />
               <span className="text-lg md:text-2xl font-bold text-white">NeuroNotes</span>
             </div>
           </div>
@@ -432,7 +492,7 @@ const JoinMeeting = () => {
                 <CardHeader>
                   <CardTitle className="text-white text-lg md:text-xl">Virtual Audio Mode</CardTitle>
                   <CardDescription className="text-slate-300 text-sm md:text-base">
-                    Capture audio from virtual meetings or system audio. Select a device and start transcription.
+                    Capture audio from virtual meetings or system audio. Select a device, enter a title, and start transcription.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -452,11 +512,44 @@ const JoinMeeting = () => {
                             {typeof track.muted !== "undefined" && <>, muted: {String(track.muted)}</>}
                           </div>)}
                       </div>
+<<<<<<< HEAD
                     </div>}
                   {virtualAudioStream && <div className="space-y-4">
                       <div className="flex items-center gap-2">
                         <Button onClick={toggleVirtualAudioTranscription} variant={isVirtualRecording ? "destructive" : "default"} size="sm" className={isVirtualRecording ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"} disabled={isVirtRecProcessing || !virtualAudioStream}>
                           {isVirtualRecording ? <>
+=======
+                    </div>
+                  )}
+                  {virtualAudioStream && (
+                    <div className="space-y-4">
+                      <div className="space-y-2 mb-4">
+                        <Label htmlFor="virtual-note-title" className="text-white">Title</Label>
+                        <Input
+                          id="virtual-note-title"
+                          type="text"
+                          placeholder="Enter a descriptive note title"
+                          value={virtualAudioTitle}
+                          onChange={(e) => setVirtualAudioTitle(e.target.value)}
+                          className="bg-white/10 border-white/20 text-white placeholder:text-slate-400"
+                          required
+                          disabled={isVirtualRecording}
+                        />
+                        <p className="text-xs md:text-sm text-slate-400">
+                          The title will be used to save your transcription note.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          onClick={toggleVirtualAudioTranscription}
+                          variant={isVirtualRecording ? "destructive" : "default"}
+                          size="sm"
+                          className={isVirtualRecording ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}
+                          disabled={isVirtRecProcessing || !virtualAudioStream || !virtualAudioTitle.trim()}
+                        >
+                          {isVirtualRecording ? (
+                            <>
+>>>>>>> 2a1f751 (Fixed Audio capture and  Virtual Audio in JoinMeeting.tsx)
                               <Square className="h-4 w-4 mr-2" />
                               Stop Transcription
                             </> : <>
@@ -469,6 +562,7 @@ const JoinMeeting = () => {
                       {virtRecError && <Alert variant="destructive" className="mt-3">
                           <AlertCircle className="h-4 w-4 mr-1" />
                           <AlertDescription>{virtRecError}</AlertDescription>
+<<<<<<< HEAD
                         </Alert>}
                       <div className="h-72 overflow-y-auto scrollbar-thin">
                         {virtualAudioTranscripts.length === 0 ? <div className="text-center text-slate-300 pt-14">
@@ -492,6 +586,43 @@ const JoinMeeting = () => {
                         description: "Transcription copied to clipboard."
                       });
                     }} variant="outline" size="sm" className="border-white/30 text-slate-950">
+=======
+                        </Alert>
+                      )}
+                      <div className="mt-4">
+                        <h3 className="text-white font-semibold mb-2 md:mb-3">Live Transcript</h3>
+                        <div className="bg-white/5 rounded-lg p-3 md:p-4 border border-white/10 min-h-[70px] max-h-52 md:max-h-[300px] overflow-y-auto">
+                          <p className="text-slate-300 leading-relaxed text-xs md:text-base break-words whitespace-pre-line">
+                            {combinedTranscript || (isVirtualRecording ? "Listening..." : "No transcript yet. Start to capture system audio.")}
+                          </p>
+                        </div>
+                      </div>
+                      {combinedTranscript && (
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => {
+                              setVirtualAudioTranscripts([]);
+                              resetVirtRecording();
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="border-white/30 text-black"
+                          >
+                            Clear
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              navigator.clipboard.writeText(combinedTranscript);
+                              toast({
+                                title: "Copied",
+                                description: "Transcription copied to clipboard.",
+                              });
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="border-white/30 text-black"
+                          >
+>>>>>>> 2a1f751 (Fixed Audio capture and  Virtual Audio in JoinMeeting.tsx)
                             Copy All
                           </Button>
                         </div>}
@@ -568,6 +699,7 @@ const JoinMeeting = () => {
                       Save to Notes
                     </>}
                 </Button>
+<<<<<<< HEAD
                 <Button onClick={() => {
               const transcriptText = speakerSegments.length > 0 ? speakerSegments.map(s => `[${s.speaker}]: ${s.text}`).join('\n') : transcriptionResults.join('\n');
               navigator.clipboard.writeText(transcriptText);
@@ -582,6 +714,34 @@ const JoinMeeting = () => {
               setTranscriptionResults([]);
               setSpeakerSegments([]);
             }} variant="outline" className="bg-white/10 border-white/30 hover:bg-white/50 text-white px-3 py-2">
+=======
+                <Button
+                  onClick={() => {
+                    const transcriptText = speakerSegments.length > 0
+                      ? speakerSegments.map(s => `[${s.speaker}]: ${s.text}`).join(' ')
+                      : transcriptionResults.join(' ');
+                    navigator.clipboard.writeText(transcriptText);
+                    toast({
+                      title: "Copied",
+                      description: "Transcription copied to clipboard.",
+                    });
+                  }}
+                  variant="outline"
+                  className="bg-white/10 border-white/30 hover:bg-white/50 text-white px-3 py-2"
+                >
+                  Copy All
+                </Button>
+                <Button
+                  onClick={() => {
+                    setTranscriptionResults([]);
+                    setSpeakerSegments([]);
+                    setVirtualAudioTranscripts([]);
+                    resetVirtRecording();
+                  }}
+                  variant="outline"
+                  className="bg-white/10 border-white/30 hover:bg-white/50 text-white px-3 py-2"
+                >
+>>>>>>> 2a1f751 (Fixed Audio capture and  Virtual Audio in JoinMeeting.tsx)
                   Clear
                 </Button>
               </div>
