@@ -71,8 +71,3 @@ Yes, you can!
 
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.  
 Read more here: [Setting up a Custom Domain](https://myproject.dev/docs/custom-domain)
-
-
-
- Note
-This README reflects the planning stage of the Real-Time Transcription and Summarization Web Application, as of 07:34 PM WAT on Tuesday, July 15, 2025. As development progresses, updates will include detailed setup instructions, API configurations, and additional documentation. Stay tuned for the latest progress!
