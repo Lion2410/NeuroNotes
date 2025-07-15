@@ -55,7 +55,7 @@ const Index = () => {
                 <img src="/lovable-uploads/2d11ec38-9fc4-4af5-9224-4b5b20a91803.png" alt="NeuroNotes" className="h-12 w-12 mb-4" />
                 <CardTitle className="text-white">Smart Meeting Assistant</CardTitle>
                 <CardDescription className="text-slate-300">
-                  Automatically join Google Meet, Zoom, and other online meetings for seamless transcription
+                  Join Google Meet, Zoom, and other online meetings for seamless transcription
                 </CardDescription>
               </CardHeader>
             </Card>

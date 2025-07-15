@@ -200,7 +200,7 @@ const AudioRecorder: React.FC<AudioRecorderProps> = ({
       setIsRecording(true);
       toast({
         title: "Recording Started",
-        description: "Please be in a less noisy environment.",
+        description: "Please Be In a Less Noisy Environment.",
       });
     } catch (error) {
       setIsRecording(false);
