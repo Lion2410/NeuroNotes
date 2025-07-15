@@ -1,73 +1,78 @@
-# Welcome to your Lovable project
+🧠 NeuroNotes
 
-## Project info
+An AI-powered web application that captures speech from live sessions or uploaded audio files, transcribes it in real-time, and generates concise summaries to support effective note-taking and collaboration in virtual classrooms or meetings. It also Supports Group Collaboration
+    
+    Features
 
-**URL**: https://lovable.dev/projects/a3ff9692-6369-4c79-8cb3-f8dbc23766de
+-Real-Time Audio Transcription via [Deepgram API](https://www.deepgram.com/)
+- ✂️ Text Summarization using models from [Hugging Face](https://huggingface.co/)
+- 📓 Create and Save Notes with timestamps
+- 🧑‍🤝‍🧑 Group Collaboration via invite links
+- 👤 User Authentication (Register/Login)
+- 📂 View and Manage Notes
+- 📊 Dashboard Overview of sessions and notes
+ Real-Time Transcription and Summarization Web Application
 
-## How can I edit this code?
+ Overview
+Welcome to your Real-Time Transcription and Summarization Web Application!  
+Project info  
+URL: (https://github.com/Lion2410/NeuroNotes)
 
-There are several ways of editing your application.
+ How Can I Edit This Code?
+There are several ways to edit your application.
 
-**Use Lovable**
+ Use the Project Platform
+Simply visit the Project Platform and start prompting.  
+Changes made via the Project Platform will be committed automatically to this repo.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/a3ff9692-6369-4c79-8cb3-f8dbc23766de) and start prompting.
+ Use Your Preferred IDE
+If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in the Project Platform.  
+The only requirement is having Node.js & npm installed - install with nvm.  
 
-Changes made via Lovable will be committed automatically to this repo.
+Follow these steps:  
 
-**Use your preferred IDE**
+- Step 1: Clone the repository using the project's Git URL.  
+  `git clone <YOUR_GIT_URL>`  
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- Step 2: Navigate to the project directory.  
+  `cd <YOUR_PROJECT_NAME>`  
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- Step 3: Install the necessary dependencies.  
+  `npm i`  
 
-Follow these steps:
+- Step 4: Start the development server with auto-reloading and an instant preview.  
+  `npm run dev`  
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+ Edit a File Directly in GitHub
+- Navigate to the desired file(s).  
+- Click the "Edit" button (pencil icon) at the top right of the file view.  
+- Make your changes and commit the changes.  
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+ Use GitHub Codespaces
+- Navigate to the main page of your repository.  
+- Click on the "Code" button (green button) near the top right.  
+- Select the "Codespaces" tab.  
+- Click on "New codespace" to launch a new Codespace environment.  
+- Edit files directly within the Codespace and commit and push your changes once you're done.  
 
-# Step 3: Install the necessary dependencies.
-npm i
+ What Technologies Are Used for This Project?
+This project will be built with:  
+- Vite  
+- TypeScript  
+- React  
+- shadcn-ui  
+- Tailwind CSS  
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+ How Can I Deploy This Project?
+Simply open the Project Platform and click on Share -> Publish.
 
-**Edit a file directly in GitHub**
+ Can I Connect a Custom Domain to My Project?
+Yes, you can!  
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.  
+Read more here: [Setting up a Custom Domain](https://myproject.dev/docs/custom-domain)
 
-**Use GitHub Codespaces**
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
 
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/a3ff9692-6369-4c79-8cb3-f8dbc23766de) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+ Note
+This README reflects the planning stage of the Real-Time Transcription and Summarization Web Application, as of 07:34 PM WAT on Tuesday, July 15, 2025. As development progresses, updates will include detailed setup instructions, API configurations, and additional documentation. Stay tuned for the latest progress!
