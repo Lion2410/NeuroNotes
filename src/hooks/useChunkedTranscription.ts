@@ -115,7 +115,7 @@ export function useChunkedTranscription({
         formData.append("audio", audioBlob, "audio.webm");
         console.log("[useChunkedTranscription] Sending chunk, size:", audioBlob.size, "Sample rate:", sampleRate, "Channels:", channels, "Chunk index:", chunkIndex);
         const response = await fetch(
-          "https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio",
+          "https://fnpujylaybeimaazsaix.supabase.co/functions/v1/transcribe-audio",
           {
             method: "POST",
             headers: {
