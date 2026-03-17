@@ -84,10 +84,10 @@ const RoundRecordingButton: React.FC<RoundRecordingButtonProps> = ({
       const formData = new FormData();
       formData.append('audio', audioBlob);
 
-      const response = await fetch('https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio', {
+      const response = await fetch('https://fnpujylaybeimaazsaix.supabase.co/functions/v1/transcribe-audio', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsZnFuY2xxb3dsbGpqY2JldW56Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkwNTMwNzMsImV4cCI6MjA2NDYyOTA3M30.tt4NjuhDuBuuKOBvuoaAJIqxt_wmBRlm2KlN_-l-_UU'}`,
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZucHVqeWxheWJlaW1hYXpzYWl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2NTkyMDcsImV4cCI6MjA4OTIzNTIwN30.dKH4k6dgz94IDsG4u6mmIv2hjfibfVNLb2OvjLsrZlg`,
         },
         body: formData,
       });
