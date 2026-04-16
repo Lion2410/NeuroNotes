@@ -3,6 +3,28 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
+function decodeSupabaseTokenPayload(token: string) {
+  try {
+    let jwt = token;
+    if (token.trim().startsWith('{')) {
+      const parsed = JSON.parse(token);
+      jwt = parsed.currentSession?.access_token || parsed.access_token || token;
+    }
+    const payload = jwt.split('.')[1];
+    if (!payload) return null;
+    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+}
+
+function clearSupabaseStoredToken() {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem('supabase.auth.token');
+  window.sessionStorage.removeItem('supabase.auth.token');
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -21,6 +43,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Clear stale project tokens before initializing auth state.
+    if (typeof window !== 'undefined') {
+      const storedToken = window.localStorage.getItem('supabase.auth.token') || window.sessionStorage.getItem('supabase.auth.token');
+      const tokenPayload = storedToken ? decodeSupabaseTokenPayload(storedToken) : null;
+      if (tokenPayload?.ref && tokenPayload.ref !== 'fnpujylaybeimaazsaix') {
+        console.warn('Clearing stale Supabase token from old project ref:', tokenPayload.ref);
+        clearSupabaseStoredToken();
+      }
+    }
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Mic, Square, Users, Clock, Save, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 interface TranscriptSegment {
   id: string;
@@ -95,6 +96,8 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
   const [lastUploadDebug, setLastUploadDebug] = useState<{
     mode: string, sessionId: string|null, deviceLabel: string, chunkLen: number, pcmLen: number, timestamp: string
   }|null>(null);
+
+  const { session } = useAuth();
 
   // Timer
   useEffect(() => {
@@ -300,7 +303,7 @@ const RealTimeTranscription: React.FC<RealTimeTranscriptionProps> = ({
       const response = await fetch("https://fnpujylaybeimaazsaix.supabase.co/functions/v1/transcribe-audio", {
         method: "POST",
         headers: {
-          'Authorization': `Bearer ${window.sessionStorage.getItem('supabase.auth.token') || ''}`
+          Authorization: `Bearer ${session?.access_token || ''}`
         },
         body: formData
       });
