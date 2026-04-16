@@ -20,7 +20,7 @@ interface AudioRecorderProps {
   disabled: boolean
 }
 
-const supabaseTranscribeURL = 'https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio';
+const supabaseTranscribeURL = 'https://fnpujylaybeimaazsaix.supabase.co/functions/v1/transcribe-audio';
 const CHUNK_SECONDS = 5;
 const PCM_SAMPLE_RATE = 24000;
 

@@ -87,7 +87,7 @@ const RoundRecordingButton: React.FC<RoundRecordingButtonProps> = ({
       const response = await fetch('https://fnpujylaybeimaazsaix.supabase.co/functions/v1/transcribe-audio', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZucHVqeWxheWJlaW1hYXpzYWl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2NTkyMDcsImV4cCI6MjA4OTIzNTIwN30.dKH4k6dgz94IDsG4u6mmIv2hjfibfVNLb2OvjLsrZlg`,
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZucHVqeWxheWJlaW1hYXpzYWl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2NTkyMDcsImV4cCI6MjA4OTIzNTIwN30.dKH4k6dgz94IDsG4u6mmIv2hjfibfVNLb2OvjLsrZlg'}`,
         },
         body: formData,
       });
