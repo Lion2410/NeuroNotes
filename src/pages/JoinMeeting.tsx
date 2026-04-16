@@ -218,7 +218,7 @@ const JoinMeeting = () => {
       const formData = new FormData();
       formData.append('audio', selectedFile);
       
-      const response = await fetch('https://qlfqnclqowlljjcbeunz.supabase.co/functions/v1/transcribe-audio', {
+      const response = await fetch('https://fnpujylaybeimaazsaix.supabase.co/functions/v1/transcribe-audio', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${authToken}`
